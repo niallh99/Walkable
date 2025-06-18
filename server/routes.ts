@@ -1,0 +1,264 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { insertUserSchema, loginUserSchema, insertTourSchema } from "@shared/schema";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const JWT_EXPIRES_IN = "7d";
+
+// Middleware to verify JWT token
+const authenticateToken = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Access token required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const user = await storage.getUser(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(403).json({ message: 'Invalid or expired token' });
+  }
+};
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  // User Registration
+  app.post("/api/register", async (req, res) => {
+    try {
+      const validatedData = insertUserSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(validatedData.email);
+      if (existingUser) {
+        return res.status(409).json({ 
+          error: "Conflict", 
+          details: "Email already registered." 
+        });
+      }
+
+      const existingUsername = await storage.getUserByUsername(validatedData.username);
+      if (existingUsername) {
+        return res.status(409).json({ 
+          error: "Conflict", 
+          details: "Username already taken." 
+        });
+      }
+
+      // Hash password
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(validatedData.password, saltRounds);
+
+      // Create user
+      const user = await storage.createUser({
+        ...validatedData,
+        password: hashedPassword,
+      });
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { userId: user.id, email: user.email },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+
+      res.status(201).json({
+        message: "User registered successfully",
+        user: { id: user.id, username: user.username, email: user.email },
+        token,
+      });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: error.errors.map((e: any) => e.message).join(', ')
+        });
+      }
+      
+      console.error('Registration error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to register user"
+      });
+    }
+  });
+
+  // User Login
+  app.post("/api/login", async (req, res) => {
+    try {
+      const validatedData = loginUserSchema.parse(req.body);
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(validatedData.email);
+      if (!user) {
+        return res.status(401).json({
+          error: "Unauthorized",
+          details: "Invalid email or password."
+        });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(validatedData.password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({
+          error: "Unauthorized",
+          details: "Invalid email or password."
+        });
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { userId: user.id, email: user.email },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+
+      res.json({
+        message: "Login successful",
+        user: { id: user.id, username: user.username, email: user.email },
+        token,
+      });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: error.errors.map((e: any) => e.message).join(', ')
+        });
+      }
+      
+      console.error('Login error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to login"
+      });
+    }
+  });
+
+  // Get current user (protected route)
+  app.get("/api/user", authenticateToken, async (req: any, res) => {
+    res.json({
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email,
+      }
+    });
+  });
+
+  // Logout (client-side token removal, server-side placeholder)
+  app.post("/api/logout", authenticateToken, async (req, res) => {
+    res.json({ message: "Logout successful" });
+  });
+
+  // Get tours (public route)
+  app.get("/api/tours", async (req, res) => {
+    try {
+      const tours = await storage.getAllTours();
+      res.json(tours);
+    } catch (error) {
+      console.error('Get tours error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch tours"
+      });
+    }
+  });
+
+  // Get nearby tours
+  app.get("/api/tours/nearby", async (req, res) => {
+    try {
+      const { lat, lon, radius = 10 } = req.query;
+      
+      if (!lat || !lon) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Latitude and longitude are required"
+        });
+      }
+
+      const tours = await storage.getNearbyTours(
+        parseFloat(lat as string),
+        parseFloat(lon as string),
+        parseFloat(radius as string)
+      );
+      
+      res.json(tours);
+    } catch (error) {
+      console.error('Get nearby tours error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch nearby tours"
+      });
+    }
+  });
+
+  // Create tour (protected route)
+  app.post("/api/tours", authenticateToken, async (req: any, res) => {
+    try {
+      const validatedData = insertTourSchema.parse(req.body);
+      
+      const tour = await storage.createTour({
+        ...validatedData,
+        creatorId: req.user.id,
+      });
+
+      res.status(201).json({
+        message: "Tour created successfully",
+        tour,
+      });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: error.errors.map((e: any) => e.message).join(', ')
+        });
+      }
+      
+      console.error('Create tour error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to create tour"
+      });
+    }
+  });
+
+  // Get tour by ID
+  app.get("/api/tours/:id", async (req, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid tour ID"
+        });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "Tour not found"
+        });
+      }
+
+      res.json(tour);
+    } catch (error) {
+      console.error('Get tour error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch tour"
+      });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
