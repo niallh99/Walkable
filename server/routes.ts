@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, loginUserSchema, insertTourSchema } from "@shared/schema";
@@ -66,6 +67,16 @@ const authenticateToken = async (req: any, res: any, next: any) => {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Serve uploaded audio files as static content first
+  app.use('/uploads', express.static(uploadsDir, {
+    setHeaders: (res, path) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      if (path.endsWith('.mp3') || path.endsWith('.wav') || path.endsWith('.m4a') || path.endsWith('.ogg')) {
+        res.setHeader('Content-Type', 'audio/mpeg');
+      }
+    }
+  }));
   // User Registration
   app.post("/api/register", async (req, res) => {
     try {
@@ -338,12 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve uploaded audio files
-  app.use('/uploads', (req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
-    next();
-  });
+
 
   // Geocoding proxy endpoint
   app.get("/api/geocode", async (req, res) => {

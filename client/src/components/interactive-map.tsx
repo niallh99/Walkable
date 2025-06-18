@@ -189,7 +189,7 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
             position={[parseFloat(tour.latitude), parseFloat(tour.longitude)]}
             icon={tourIcon}
           >
-            <Popup className="tour-popup">
+            <Popup className="tour-popup" closeOnEscapeKey={true} closeOnClick={false} autoClose={true}>
               <div className="max-w-xs">
                 <div className="flex items-start space-x-2 mb-3">
                   <span className="text-2xl">{getCategoryIcon(tour.category)}</span>
