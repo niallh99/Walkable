@@ -81,7 +81,7 @@ export default function CreateTour() {
       const response = await fetch('/api/tours/upload-audio', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: formData,
       });
