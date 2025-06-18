@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Tour } from '@shared/schema';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ interface InteractiveMapProps {
   activeLocation?: UserLocation;
   onLocationRequest: () => void;
   onTourSelect?: (tour: Tour) => void;
+  onMapClick?: (location: UserLocation) => void;
 }
 
 // Component to update map view when any location changes
@@ -58,7 +59,23 @@ function MapUpdater({ activeLocation }: { activeLocation?: UserLocation }) {
   return null;
 }
 
-export function InteractiveMap({ tours, userLocation, activeLocation, onLocationRequest, onTourSelect }: InteractiveMapProps) {
+// Component to handle map clicks for location selection
+function MapClickHandler({ onMapClick }: { onMapClick?: (location: UserLocation) => void }) {
+  useMapEvents({
+    click: (e) => {
+      if (onMapClick) {
+        onMapClick({
+          latitude: e.latlng.lat,
+          longitude: e.latlng.lng,
+        });
+      }
+    },
+  });
+  
+  return null;
+}
+
+export function InteractiveMap({ tours, userLocation, activeLocation, onLocationRequest, onTourSelect, onMapClick }: InteractiveMapProps) {
   const [isLoading, setIsLoading] = useState(false);
   const mapRef = useRef<L.Map>(null);
 
@@ -128,6 +145,7 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
         className="rounded-lg"
       >
         <MapUpdater activeLocation={activeLocation || userLocation} />
+        <MapClickHandler onMapClick={onMapClick} />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
