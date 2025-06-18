@@ -26,7 +26,7 @@ const tourSchema = z.object({
   category: z.string().min(1, "Please select a category"),
   latitude: z.string().min(1, "Please select a location on the map"),
   longitude: z.string().min(1, "Please select a location on the map"),
-  duration: z.number().min(5, "Duration must be at least 5 minutes").max(300, "Duration cannot exceed 5 hours"),
+  duration: z.number().min(1, "Duration must be at least 1 minute").max(300, "Duration cannot exceed 5 hours"),
   distance: z.string().min(1, "Please enter the walking distance"),
   audioFileUrl: z.string().optional(),
 });
