@@ -1,0 +1,208 @@
+import { useEffect, useState, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import { Tour } from '@shared/schema';
+import { Button } from '@/components/ui/button';
+import { MapPin, Navigation, Volume2 } from 'lucide-react';
+
+// Fix for default markers in react-leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+// Custom icons
+const userLocationIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const tourIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+interface UserLocation {
+  latitude: number;
+  longitude: number;
+}
+
+interface InteractiveMapProps {
+  tours: Tour[];
+  userLocation?: UserLocation;
+  onLocationRequest: () => void;
+  onTourSelect?: (tour: Tour) => void;
+}
+
+// Component to update map view when user location changes
+function MapUpdater({ userLocation }: { userLocation?: UserLocation }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (userLocation) {
+      map.setView([userLocation.latitude, userLocation.longitude], 13);
+    }
+  }, [userLocation, map]);
+  
+  return null;
+}
+
+export function InteractiveMap({ tours, userLocation, onLocationRequest, onTourSelect }: InteractiveMapProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const mapRef = useRef<L.Map>(null);
+
+  // Default to San Francisco if no user location
+  const defaultCenter: [number, number] = [37.7749, -122.4194];
+  const center: [number, number] = userLocation 
+    ? [userLocation.latitude, userLocation.longitude] 
+    : defaultCenter;
+
+  const handleGetLocation = async () => {
+    setIsLoading(true);
+    try {
+      onLocationRequest();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'history':
+        return '🏛️';
+      case 'culture':
+        return '🎭';
+      case 'food':
+        return '🍕';
+      case 'nature':
+        return '🌳';
+      case 'architecture':
+        return '🏗️';
+      default:
+        return '📍';
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full">
+      {/* Location Controls */}
+      <div className="absolute top-4 right-4 z-[1000] bg-white rounded-lg shadow-lg p-2">
+        <Button
+          onClick={handleGetLocation}
+          disabled={isLoading}
+          className="flex items-center space-x-2 bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+        >
+          <Navigation className="h-4 w-4" />
+          <span>{isLoading ? 'Getting Location...' : 'My Location'}</span>
+        </Button>
+      </div>
+
+      {/* Tour Count Display */}
+      <div className="absolute top-4 left-4 z-[1000] bg-white rounded-lg shadow-lg p-3">
+        <div className="flex items-center space-x-2">
+          <MapPin className="h-5 w-5 text-walkable-cyan" />
+          <span className="font-medium text-gray-700">
+            {tours.length} {tours.length === 1 ? 'Tour' : 'Tours'} Found
+          </span>
+        </div>
+      </div>
+
+      {/* Map Container */}
+      <MapContainer
+        center={center}
+        zoom={13}
+        style={{ height: '100%', width: '100%' }}
+        ref={mapRef}
+        className="rounded-lg"
+      >
+        <MapUpdater userLocation={userLocation} />
+        
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
+        {/* User Location Marker */}
+        {userLocation && (
+          <Marker
+            position={[userLocation.latitude, userLocation.longitude]}
+            icon={userLocationIcon}
+          >
+            <Popup>
+              <div className="text-center">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Navigation className="h-4 w-4 text-blue-500" />
+                  <span className="font-semibold">Your Location</span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  You are here
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* Tour Markers */}
+        {tours.map((tour) => (
+          <Marker
+            key={tour.id}
+            position={[parseFloat(tour.latitude), parseFloat(tour.longitude)]}
+            icon={tourIcon}
+          >
+            <Popup className="tour-popup">
+              <div className="max-w-xs">
+                <div className="flex items-start space-x-2 mb-3">
+                  <span className="text-2xl">{getCategoryIcon(tour.category)}</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg text-gray-800 leading-tight">
+                      {tour.title}
+                    </h3>
+                    <p className="text-sm text-gray-600 capitalize">
+                      {tour.category}
+                    </p>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-gray-700 mb-3 line-clamp-3">
+                  {tour.description}
+                </p>
+                
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                  {tour.duration && (
+                    <span className="flex items-center space-x-1">
+                      <Volume2 className="h-3 w-3" />
+                      <span>{tour.duration} min</span>
+                    </span>
+                  )}
+                  {tour.distance && (
+                    <span className="flex items-center space-x-1">
+                      <MapPin className="h-3 w-3" />
+                      <span>{tour.distance}</span>
+                    </span>
+                  )}
+                </div>
+                
+                <Button
+                  onClick={() => onTourSelect?.(tour)}
+                  className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white text-sm"
+                >
+                  View Tour Details
+                </Button>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+    </div>
+  );
+}

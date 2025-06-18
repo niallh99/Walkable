@@ -1,35 +1,261 @@
-import { Navbar } from "@/components/navbar";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { InteractiveMap } from '@/components/interactive-map';
+import { Navbar } from '@/components/navbar';
+import { Tour } from '@shared/schema';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { MapPin, Volume2, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface UserLocation {
+  latitude: number;
+  longitude: number;
+}
 
 export default function Discover() {
+  const [userLocation, setUserLocation] = useState<UserLocation | undefined>();
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const { toast } = useToast();
+
+  // Fetch all tours initially
+  const { data: allTours = [], isLoading: isLoadingTours } = useQuery<Tour[]>({
+    queryKey: ['/api/tours'],
+  });
+
+  // Fetch nearby tours when user location is available
+  const { data: nearbyTours = [], isLoading: isLoadingNearby } = useQuery<Tour[]>({
+    queryKey: ['/api/tours/nearby', userLocation?.latitude, userLocation?.longitude],
+    queryFn: async () => {
+      if (!userLocation) return [];
+      const response = await fetch(
+        `/api/tours/nearby?lat=${userLocation.latitude}&lon=${userLocation.longitude}&radius=10`
+      );
+      if (!response.ok) throw new Error('Failed to fetch nearby tours');
+      return response.json();
+    },
+    enabled: !!userLocation,
+  });
+
+  // Use nearby tours if location is available, otherwise show all tours
+  const displayTours = userLocation ? nearbyTours : allTours;
+
+  const handleLocationRequest = async () => {
+    setIsGettingLocation(true);
+    
+    if (!navigator.geolocation) {
+      toast({
+        title: "Location not supported",
+        description: "Your browser doesn't support geolocation.",
+        variant: "destructive",
+      });
+      setIsGettingLocation(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setUserLocation(location);
+        setIsGettingLocation(false);
+        toast({
+          title: "Location found",
+          description: "Showing tours near your location.",
+        });
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        setIsGettingLocation(false);
+        toast({
+          title: "Location access denied",
+          description: "Please enable location access to find nearby tours.",
+          variant: "destructive",
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000, // 5 minutes
+      }
+    );
+  };
+
+  const handleTourSelect = (tour: Tour) => {
+    setSelectedTour(tour);
+  };
+
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      history: 'bg-orange-100 text-orange-800',
+      culture: 'bg-purple-100 text-purple-800',
+      food: 'bg-red-100 text-red-800',
+      nature: 'bg-green-100 text-green-800',
+      architecture: 'bg-blue-100 text-blue-800',
+    };
+    return colors[category.toLowerCase()] || 'bg-gray-100 text-gray-800';
+  };
+
   return (
-    <div className="min-h-screen bg-walkable-light-gray">
+    <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="pt-24 pb-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Explore Tours Near You
-            </h1>
-            <p className="text-xl text-walkable-gray">
-              Discover amazing audio walking tours in your area
-            </p>
-          </div>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">🗺️</div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Interactive Map Coming Soon
-                </h3>
-                <p className="text-walkable-gray max-w-md mx-auto">
-                  We're working on an amazing interactive map experience with Leaflet.js
-                  that will show you nearby tours and let you discover new adventures.
+      
+      <div className="pt-16 h-screen flex flex-col">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-4 py-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Discover Tours</h1>
+                <p className="text-gray-600 mt-1">
+                  {userLocation 
+                    ? `Showing tours near your location` 
+                    : `Explore ${displayTours.length} available tours`
+                  }
                 </p>
               </div>
-            </CardContent>
-          </Card>
+              
+              {!userLocation && (
+                <Button
+                  onClick={handleLocationRequest}
+                  disabled={isGettingLocation}
+                  className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+                >
+                  {isGettingLocation ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Finding Location...
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="mr-2 h-4 w-4" />
+                      Find Nearby Tours
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex">
+          {/* Map Section */}
+          <div className="flex-1 relative">
+            {isLoadingTours || isLoadingNearby ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-walkable-cyan mx-auto mb-4" />
+                  <p className="text-gray-600">Loading tours...</p>
+                </div>
+              </div>
+            ) : displayTours.length === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="text-center max-w-md mx-auto px-4">
+                  <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tours Found</h3>
+                  <p className="text-gray-600 mb-4">
+                    {userLocation 
+                      ? "No tours found in your area. Try expanding your search radius or explore other locations."
+                      : "No tours are currently available. Check back later for new content."
+                    }
+                  </p>
+                  {userLocation && (
+                    <Button
+                      onClick={() => setUserLocation(undefined)}
+                      variant="outline"
+                      className="border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
+                    >
+                      Show All Tours
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <InteractiveMap
+                tours={displayTours}
+                userLocation={userLocation}
+                onLocationRequest={handleLocationRequest}
+                onTourSelect={handleTourSelect}
+              />
+            )}
+          </div>
+
+          {/* Tour Details Sidebar */}
+          {selectedTour && (
+            <div className="w-96 bg-white border-l border-gray-200 p-6 overflow-y-auto">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-xl mb-2">{selectedTour.title}</CardTitle>
+                      <Badge className={getCategoryColor(selectedTour.category)}>
+                        {selectedTour.category}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedTour(null)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      ×
+                    </Button>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-4">
+                  <CardDescription className="text-base leading-relaxed">
+                    {selectedTour.description}
+                  </CardDescription>
+
+                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    {selectedTour.duration && (
+                      <div className="flex items-center space-x-1">
+                        <Clock className="h-4 w-4" />
+                        <span>{selectedTour.duration} min</span>
+                      </div>
+                    )}
+                    {selectedTour.distance && (
+                      <div className="flex items-center space-x-1">
+                        <MapPin className="h-4 w-4" />
+                        <span>{selectedTour.distance}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedTour.audioFileUrl && (
+                    <div className="border rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Volume2 className="h-4 w-4 text-walkable-cyan" />
+                        <span className="font-medium text-sm">Audio Preview</span>
+                      </div>
+                      <audio 
+                        controls 
+                        className="w-full"
+                        src={selectedTour.audioFileUrl}
+                      >
+                        Your browser does not support the audio element.
+                      </audio>
+                    </div>
+                  )}
+
+                  <div className="pt-4 space-y-3">
+                    <Button className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white">
+                      Start Tour
+                    </Button>
+                    <Button variant="outline" className="w-full">
+                      Save for Later
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </div>
