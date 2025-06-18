@@ -4,9 +4,44 @@ import { storage } from "./storage";
 import { insertUserSchema, loginUserSchema, insertTourSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const JWT_EXPIRES_IN = "7d";
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for audio file uploads
+const audioStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'audio-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const audioUpload = multer({ 
+  storage: audioStorage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only audio files are allowed.'));
+    }
+  }
+});
 
 // Middleware to verify JWT token
 const authenticateToken = async (req: any, res: any, next: any) => {
@@ -257,6 +292,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         details: "Failed to fetch tour"
       });
     }
+  });
+
+  // Audio file upload endpoint (protected route)
+  app.post("/api/tours/upload-audio", authenticateToken, audioUpload.single('audio'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "No audio file provided"
+        });
+      }
+
+      // Return the file URL for storage in tour data
+      const fileUrl = `/uploads/${req.file.filename}`;
+      
+      res.json({
+        message: "Audio file uploaded successfully",
+        audioUrl: fileUrl,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size
+      });
+    } catch (error: any) {
+      console.error('Audio upload error:', error);
+      
+      if (error.message.includes('Invalid file type')) {
+        return res.status(400).json({
+          error: "Invalid file type",
+          details: "Only audio files (MP3, WAV, M4A, OGG) are allowed"
+        });
+      }
+      
+      if (error.message.includes('File too large')) {
+        return res.status(400).json({
+          error: "File too large",
+          details: "Audio file must be less than 50MB"
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to upload audio file"
+      });
+    }
+  });
+
+  // Serve uploaded audio files
+  app.use('/uploads', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    next();
   });
 
   // Geocoding proxy endpoint
