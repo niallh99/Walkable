@@ -33,7 +33,7 @@ const tourIcon = new L.Icon({
 });
 
 const selectedLocationIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png',
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [30, 49],
   iconAnchor: [15, 49],
@@ -44,6 +44,7 @@ const selectedLocationIcon = new L.Icon({
 interface UserLocation {
   latitude: number;
   longitude: number;
+  address?: string;
 }
 
 interface InteractiveMapProps {
