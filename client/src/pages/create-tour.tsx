@@ -204,8 +204,24 @@ export default function CreateTour() {
 
   const handleCreateTour = () => {
     const formData = form.getValues();
-    console.log('Form validation errors:', form.formState.errors);
+    const errors = form.formState.errors;
+    
+    console.log('Form validation errors:', errors);
     console.log('Form data before submit:', formData);
+    
+    // Check for validation errors and show user-friendly messages
+    if (Object.keys(errors).length > 0) {
+      const errorMessages = Object.entries(errors).map(([field, error]) => {
+        return `${field}: ${error?.message}`;
+      }).join('\n');
+      
+      toast({
+        title: "Please fix the following errors:",
+        description: errorMessages,
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Trigger form submission
     form.handleSubmit(onSubmit)();
