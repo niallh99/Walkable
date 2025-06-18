@@ -32,6 +32,15 @@ const tourIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
+const selectedLocationIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [30, 49],
+  iconAnchor: [15, 49],
+  popupAnchor: [1, -42],
+  shadowSize: [41, 41]
+});
+
 interface UserLocation {
   latitude: number;
   longitude: number;
@@ -222,6 +231,23 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
             </Popup>
           </Marker>
         ))}
+
+        {/* Selected Location Marker (for tour creation) */}
+        {activeLocation && onMapClick && (
+          <Marker
+            position={[activeLocation.latitude, activeLocation.longitude]}
+            icon={selectedLocationIcon}
+          >
+            <Popup>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-gray-800 mb-2">Tour Starting Point</div>
+                <p className="text-sm text-gray-600">
+                  {activeLocation.address || `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
       </MapContainer>
     </div>
   );
