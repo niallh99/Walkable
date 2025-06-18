@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { InteractiveMap } from '@/components/interactive-map';
+import { LocationSearch } from '@/components/location-search';
 import { Navbar } from '@/components/navbar';
 import { Tour } from '@shared/schema';
 import { Button } from '@/components/ui/button';
@@ -12,12 +13,14 @@ import { useToast } from '@/hooks/use-toast';
 interface UserLocation {
   latitude: number;
   longitude: number;
+  address?: string;
 }
 
 export default function Discover() {
   const [userLocation, setUserLocation] = useState<UserLocation | undefined>();
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [searchLocation, setSearchLocation] = useState<UserLocation | undefined>();
   const { toast } = useToast();
 
   // Fetch all tours initially
@@ -25,22 +28,25 @@ export default function Discover() {
     queryKey: ['/api/tours'],
   });
 
-  // Fetch nearby tours when user location is available
+  // Use the active location (search or user location)
+  const activeLocation = searchLocation || userLocation;
+
+  // Fetch nearby tours when any location is available
   const { data: nearbyTours = [], isLoading: isLoadingNearby } = useQuery<Tour[]>({
-    queryKey: ['/api/tours/nearby', userLocation?.latitude, userLocation?.longitude],
+    queryKey: ['/api/tours/nearby', activeLocation?.latitude, activeLocation?.longitude],
     queryFn: async () => {
-      if (!userLocation) return [];
+      if (!activeLocation) return [];
       const response = await fetch(
-        `/api/tours/nearby?lat=${userLocation.latitude}&lon=${userLocation.longitude}&radius=10`
+        `/api/tours/nearby?lat=${activeLocation.latitude}&lon=${activeLocation.longitude}&radius=10`
       );
       if (!response.ok) throw new Error('Failed to fetch nearby tours');
       return response.json();
     },
-    enabled: !!userLocation,
+    enabled: !!activeLocation,
   });
 
   // Use nearby tours if location is available, otherwise show all tours
-  const displayTours = userLocation ? nearbyTours : allTours;
+  const displayTours = activeLocation ? nearbyTours : allTours;
 
   const handleLocationRequest = async () => {
     setIsGettingLocation(true);
@@ -89,6 +95,15 @@ export default function Discover() {
     setSelectedTour(tour);
   };
 
+  const handleLocationSearch = (location: { latitude: number; longitude: number; address: string }) => {
+    setSearchLocation({ ...location });
+    setUserLocation(undefined); // Clear user location when searching
+  };
+
+  const handleClearSearch = () => {
+    setSearchLocation(undefined);
+  };
+
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       history: 'bg-orange-100 text-orange-800',
@@ -108,36 +123,63 @@ export default function Discover() {
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-4 py-6">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Discover Tours</h1>
-                <p className="text-gray-600 mt-1">
-                  {userLocation 
-                    ? `Showing tours near your location` 
-                    : `Explore ${displayTours.length} available tours`
-                  }
-                </p>
+            <div className="flex flex-col space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Discover Tours</h1>
+                  <p className="text-gray-600 mt-1">
+                    {activeLocation 
+                      ? `Showing tours near ${searchLocation?.address || 'your location'}` 
+                      : `Explore ${displayTours.length} available tours`
+                    }
+                  </p>
+                </div>
+                
+                {!activeLocation && (
+                  <Button
+                    onClick={handleLocationRequest}
+                    disabled={isGettingLocation}
+                    className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+                  >
+                    {isGettingLocation ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Finding Location...
+                      </>
+                    ) : (
+                      <>
+                        <MapPin className="mr-2 h-4 w-4" />
+                        Use My Location
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
-              
-              {!userLocation && (
-                <Button
-                  onClick={handleLocationRequest}
-                  disabled={isGettingLocation}
-                  className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
-                >
-                  {isGettingLocation ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Finding Location...
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="mr-2 h-4 w-4" />
-                      Find Nearby Tours
-                    </>
-                  )}
-                </Button>
-              )}
+
+              {/* Location Search */}
+              <div className="flex items-center space-x-4">
+                <div className="flex-1 max-w-md">
+                  <LocationSearch
+                    onLocationSelect={handleLocationSearch}
+                    onClear={handleClearSearch}
+                    placeholder="Search for tours in a city or location..."
+                    className="w-full"
+                  />
+                </div>
+                
+                {activeLocation && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearchLocation(undefined);
+                      setUserLocation(undefined);
+                    }}
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    Show All Tours
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -178,7 +220,7 @@ export default function Discover() {
             ) : (
               <InteractiveMap
                 tours={displayTours}
-                userLocation={userLocation}
+                userLocation={activeLocation}
                 onLocationRequest={handleLocationRequest}
                 onTourSelect={handleTourSelect}
               />
