@@ -24,62 +24,47 @@ export function Navbar() {
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
             <Link href="/">
-              <div className="flex items-center cursor-pointer">
-                <img 
-                  src="@assets/Walkable logo_1750159513045.png" 
-                  alt="Walkable" 
-                  className="h-8 w-auto"
-                />
+              <div className="text-white font-bold text-2xl cursor-pointer">
+                Walkable
               </div>
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
-              <Link href="/">
-                <a
-                  className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
-                    location === "/" ? "border-b-2 border-white" : ""
-                  }`}
-                >
-                  Home
-                </a>
+          {/* Desktop Navigation and Auth Buttons - All on Right */}
+          <div className="hidden md:flex items-center space-x-8">
+            {/* Navigation Links */}
+            <Link href="/">
+              <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                location === "/" ? "border-b-2 border-white" : ""
+              }`}>
+                Home
+              </span>
+            </Link>
+            <Link href="/discover">
+              <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                location === "/discover" ? "border-b-2 border-white" : ""
+              }`}>
+                Discover
+              </span>
+            </Link>
+            <Link href="/create-tour">
+              <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                location === "/create-tour" ? "border-b-2 border-white" : ""
+              }`}>
+                Create
+              </span>
+            </Link>
+            {user && (
+              <Link href="/profile">
+                <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                  location === "/profile" ? "border-b-2 border-white" : ""
+                }`}>
+                  Profile
+                </span>
               </Link>
-              <Link href="/discover">
-                <a
-                  className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
-                    location === "/discover" ? "border-b-2 border-white" : ""
-                  }`}
-                >
-                  Discover
-                </a>
-              </Link>
-              <Link href="/create-tour">
-                <a
-                  className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
-                    location === "/create-tour" ? "border-b-2 border-white" : ""
-                  }`}
-                >
-                  Create
-                </a>
-              </Link>
-              {user && (
-                <Link href="/profile">
-                  <a
-                    className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors ${
-                      location === "/profile" ? "border-b-2 border-white" : ""
-                    }`}
-                  >
-                    Profile
-                  </a>
-                </Link>
-              )}
-            </div>
-          </div>
+            )}
 
-          {/* Auth Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
+            {/* Auth Buttons */}
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
