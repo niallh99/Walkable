@@ -100,7 +100,30 @@ Walkable is a full-stack web application that allows users to discover and creat
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+- June 18, 2025: Phase 1 Authentication System completed
+  - Comprehensive user authentication with JWT tokens
+  - Secure password hashing with bcrypt (12 salt rounds)
+  - Complete API endpoints: register, login, logout, user profile
+  - Protected routes with token validation middleware
+  - Frontend authentication context and protected routing
+  - Unit test suite with comprehensive coverage
+  - Manual testing verified all endpoints working correctly
+
+- June 18, 2025: UX improvements implemented
+  - Updated navbar layout with logo and right-aligned navigation
+  - Hero section redesigned with left-aligned content and image grid
+  - Footer redesigned with cyan background matching brand
+  - Walkable logo integration throughout the application
+
+- June 18, 2025: Initial project setup
+  - React frontend with TypeScript and Vite
+  - Express backend with PostgreSQL database
+  - Drizzle ORM for type-safe database operations
+  - Authentication system foundation
+
 ## Changelog
 
-Changelog:
-- June 18, 2025. Initial setup
+- June 18, 2025: Phase 1 Authentication System - COMPLETE
+- June 18, 2025: Initial setup and branding
