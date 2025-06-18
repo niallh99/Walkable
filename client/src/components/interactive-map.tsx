@@ -126,7 +126,7 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
         ref={mapRef}
         className="rounded-lg"
       >
-        <MapUpdater location={userLocation} />
+        <MapUpdater location={activeLocation} />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

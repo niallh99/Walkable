@@ -262,7 +262,8 @@ export default function Discover() {
             ) : (
               <InteractiveMap
                 tours={displayTours}
-                userLocation={activeLocation}
+                userLocation={userLocation}
+                activeLocation={activeLocation}
                 onLocationRequest={handleLocationRequest}
                 onTourSelect={handleTourSelect}
               />
