@@ -1,0 +1,109 @@
+Phase 1 – User Authentication
+
+Goal:
+
+Implement and thoroughly test user authentication functionalities, including sign-up, login, and logout, along with an authentication-aware navigation bar.
+
+Tasks:
+
+•
+Task 1.1: Backend User Authentication API Development
+
+•
+Subtask 1.1.1: Design and implement user model (username, email, password hash).
+
+•
+Subtask 1.1.2: Develop API endpoint for user registration (POST /api/register).
+
+•
+Subtask 1.1.3: Develop API endpoint for user login (POST /api/login) with JWT or session management.
+
+•
+Subtask 1.1.4: Develop API endpoint for user logout (POST /api/logout).
+
+•
+Subtask 1.1.5: Implement password hashing and salting (e.g., bcrypt).
+
+•
+Subtask 1.1.6: Implement JWT token generation and validation for authenticated requests.
+
+•
+Subtask 1.1.7: Write unit tests for all authentication API endpoints.
+
+
+
+•
+Task 1.2: Frontend User Authentication UI Development
+
+•
+Subtask 1.2.1: Design and implement user registration form.
+
+•
+Subtask 1.2.2: Design and implement user login form.
+
+•
+Subtask 1.2.3: Integrate registration form with backend API.
+
+•
+Subtask 1.2.4: Integrate login form with backend API, storing JWT/session token securely.
+
+•
+Subtask 1.2.5: Implement client-side validation for forms.
+
+
+
+•
+Task 1.3: Auth-aware Navbar Implementation
+
+•
+Subtask 1.3.1: Implement conditional rendering for navigation links (Login/Signup vs. Profile/Logout) based on authentication status.
+
+•
+Subtask 1.3.2: Implement logout functionality in the navbar, clearing client-side tokens/sessions.
+
+
+
+•
+Task 1.4: Integration Testing (Phase 1)
+
+•
+Subtask 1.4.1: Test end-to-end user registration flow.
+
+•
+Subtask 1.4.2: Test end-to-end user login flow.
+
+•
+Subtask 1.4.3: Test end-to-end user logout flow.
+
+•
+Subtask 1.4.4: Verify navbar state changes correctly upon login/logout.
+
+•
+Subtask 1.4.5: Test authentication persistence across page refreshes.
+
+
+
+Dependencies:
+
+•
+Task 1.2 depends on Task 1.1 (Frontend UI needs Backend API).
+
+•
+Task 1.3 depends on Task 1.2 (Navbar needs authentication status from frontend).
+
+•
+Task 1.4 depends on Tasks 1.1, 1.2, and 1.3 (Integration testing requires all components to be in place).
+
+Improvements/Suggestions:
+
+•
+Consider adding
+
+email verification for new user registrations to enhance security and prevent spam accounts.
+
+•
+Implement 'Forgot Password' functionality with secure password reset tokens.
+
+•
+Utilize environment variables for sensitive information like JWT secrets.
+
