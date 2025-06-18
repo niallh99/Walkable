@@ -105,14 +105,16 @@ export default function Discover() {
   };
 
   const handleShowNearbyTours = () => {
-    if (!userLocation || allTours.length === 0) {
-      // Fallback to showing all tours if no user location or no tours
+    const referenceLocation = activeLocation || userLocation;
+    
+    if (!referenceLocation || allTours.length === 0) {
+      // Fallback to showing all tours if no location or no tours
       setUserLocation(undefined);
       setSearchLocation(undefined);
       return;
     }
 
-    // Find the nearest tour to user's location
+    // Find the nearest tour to the reference location (user location or search location)
     let nearestTour = allTours[0];
     let shortestDistance = Infinity;
 
@@ -122,11 +124,11 @@ export default function Discover() {
       
       // Calculate distance using Haversine formula
       const R = 6371; // Earth's radius in km
-      const dLat = (tourLat - userLocation.latitude) * Math.PI / 180;
-      const dLon = (tourLon - userLocation.longitude) * Math.PI / 180;
+      const dLat = (tourLat - referenceLocation.latitude) * Math.PI / 180;
+      const dLon = (tourLon - referenceLocation.longitude) * Math.PI / 180;
       const a = 
         Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(userLocation.latitude * Math.PI / 180) * Math.cos(tourLat * Math.PI / 180) * 
+        Math.cos(referenceLocation.latitude * Math.PI / 180) * Math.cos(tourLat * Math.PI / 180) * 
         Math.sin(dLon/2) * Math.sin(dLon/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       const distance = R * c;
@@ -249,12 +251,12 @@ export default function Discover() {
                   <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tours Found</h3>
                   <p className="text-gray-600 mb-4">
-                    {userLocation 
+                    {activeLocation 
                       ? "No tours found in your area. Try expanding your search radius or explore other locations."
                       : "No tours are currently available. Check back later for new content."
                     }
                   </p>
-                  {userLocation && (
+                  {activeLocation && (
                     <Button
                       onClick={handleShowNearbyTours}
                       variant="outline"
