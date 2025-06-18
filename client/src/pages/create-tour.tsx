@@ -54,6 +54,8 @@ export default function CreateTour() {
   const [, setLocation] = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedLocation, setSelectedLocation] = useState<UserLocation | undefined>();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -68,6 +70,42 @@ export default function CreateTour() {
       duration: 60,
       distance: '',
       audioFileUrl: '',
+    },
+  });
+
+  const uploadAudioMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('audio', file);
+      
+      const response = await fetch('/api/tours/upload-audio', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.details || 'Failed to upload audio file');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      form.setValue('audioFileUrl', data.audioUrl);
+      toast({
+        title: "Audio uploaded successfully!",
+        description: `File "${data.originalName}" has been uploaded.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error uploading audio",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -102,6 +140,35 @@ export default function CreateTour() {
     setSelectedLocation(location);
     form.setValue('latitude', location.latitude.toString());
     form.setValue('longitude', location.longitude.toString());
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg'];
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select an audio file (MP3, WAV, M4A, or OGG)",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate file size (50MB limit)
+      if (file.size > 50 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Audio file must be less than 50MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setSelectedFile(file);
+      uploadAudioMutation.mutate(file);
+    }
   };
 
   const nextStep = () => {
@@ -321,25 +388,52 @@ export default function CreateTour() {
               <p className="text-walkable-gray">Add audio narration to bring your tour to life</p>
             </div>
 
-            <FormField
-              control={form.control}
-              name="audioFileUrl"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Audio File URL</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="https://example.com/audio/my-tour.mp3"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Provide a URL to your hosted audio file (MP3 format recommended)
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+            <div className="space-y-4">
+              <FormLabel>Audio File</FormLabel>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-walkable-cyan transition-colors">
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="audio-upload"
+                />
+                <label htmlFor="audio-upload" className="cursor-pointer">
+                  <div className="flex flex-col items-center space-y-4">
+                    <Upload className="h-12 w-12 text-gray-400" />
+                    <div>
+                      <p className="text-lg font-medium text-gray-900">
+                        {selectedFile ? selectedFile.name : 'Upload Audio File'}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Click to browse or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        MP3, WAV, M4A, OGG (max 50MB)
+                      </p>
+                    </div>
+                  </div>
+                </label>
+              </div>
+              
+              {uploadAudioMutation.isPending && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-walkable-cyan"></div>
+                    <span className="text-sm text-blue-800">Uploading audio file...</span>
+                  </div>
+                </div>
               )}
-            />
+              
+              {form.watch('audioFileUrl') && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    <FileAudio className="h-5 w-5 text-green-600" />
+                    <span className="text-sm text-green-800">Audio file uploaded successfully!</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
               <div className="flex items-start space-x-3">
