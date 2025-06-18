@@ -40,31 +40,32 @@ interface UserLocation {
 interface InteractiveMapProps {
   tours: Tour[];
   userLocation?: UserLocation;
+  activeLocation?: UserLocation;
   onLocationRequest: () => void;
   onTourSelect?: (tour: Tour) => void;
 }
 
-// Component to update map view when user location changes
-function MapUpdater({ userLocation }: { userLocation?: UserLocation }) {
+// Component to update map view when any location changes
+function MapUpdater({ location }: { location?: UserLocation }) {
   const map = useMap();
   
   useEffect(() => {
-    if (userLocation) {
-      map.setView([userLocation.latitude, userLocation.longitude], 13);
+    if (location) {
+      map.setView([location.latitude, location.longitude], 13);
     }
-  }, [userLocation, map]);
+  }, [location, map]);
   
   return null;
 }
 
-export function InteractiveMap({ tours, userLocation, onLocationRequest, onTourSelect }: InteractiveMapProps) {
+export function InteractiveMap({ tours, userLocation, activeLocation, onLocationRequest, onTourSelect }: InteractiveMapProps) {
   const [isLoading, setIsLoading] = useState(false);
   const mapRef = useRef<L.Map>(null);
 
-  // Default to San Francisco if no user location
+  // Default to San Francisco if no location
   const defaultCenter: [number, number] = [37.7749, -122.4194];
-  const center: [number, number] = userLocation 
-    ? [userLocation.latitude, userLocation.longitude] 
+  const center: [number, number] = activeLocation 
+    ? [activeLocation.latitude, activeLocation.longitude] 
     : defaultCenter;
 
   const handleGetLocation = async () => {
@@ -125,7 +126,7 @@ export function InteractiveMap({ tours, userLocation, onLocationRequest, onTourS
         ref={mapRef}
         className="rounded-lg"
       >
-        <MapUpdater userLocation={userLocation} />
+        <MapUpdater location={userLocation} />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

@@ -37,7 +37,7 @@ export default function Discover() {
     queryFn: async () => {
       if (!activeLocation) return [];
       const response = await fetch(
-        `/api/tours/nearby?lat=${activeLocation.latitude}&lon=${activeLocation.longitude}&radius=10`
+        `/api/tours/nearby?lat=${activeLocation.latitude}&lon=${activeLocation.longitude}&radius=100`
       );
       if (!response.ok) throw new Error('Failed to fetch nearby tours');
       return response.json();
@@ -102,6 +102,48 @@ export default function Discover() {
 
   const handleClearSearch = () => {
     setSearchLocation(undefined);
+  };
+
+  const handleShowNearbyTours = async () => {
+    if (!userLocation) return;
+    
+    try {
+      // Find nearest tours within 100km radius
+      const response = await fetch(
+        `/api/tours/nearby?lat=${userLocation.latitude}&lon=${userLocation.longitude}&radius=100`
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch nearby tours');
+      const nearbyToursData = await response.json();
+      
+      if (nearbyToursData.length > 0) {
+        // Find the closest tour and set it as search location to navigate map
+        const closestTour = nearbyToursData[0]; // API returns sorted by distance
+        setSearchLocation({
+          latitude: parseFloat(closestTour.latitude),
+          longitude: parseFloat(closestTour.longitude),
+          address: `Near ${closestTour.title}`
+        });
+        
+        toast({
+          title: "Nearby tours found",
+          description: `Found ${nearbyToursData.length} tours within 100km`,
+        });
+      } else {
+        toast({
+          title: "No nearby tours",
+          description: "No tours found within 100km of your location",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error finding nearby tours:', error);
+      toast({
+        title: "Search failed",
+        description: "Unable to find nearby tours. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getCategoryColor = (category: string) => {
@@ -208,11 +250,11 @@ export default function Discover() {
                   </p>
                   {userLocation && (
                     <Button
-                      onClick={() => setUserLocation(undefined)}
+                      onClick={handleShowNearbyTours}
                       variant="outline"
                       className="border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
                     >
-                      Show All Tours
+                      Show Nearby Tours
                     </Button>
                   )}
                 </div>
