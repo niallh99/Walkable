@@ -24,8 +24,12 @@ export function Navbar() {
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
             <Link href="/">
-              <div className="text-white font-bold text-2xl cursor-pointer">
-                Walkable
+              <div className="flex items-center cursor-pointer">
+                <img 
+                  src="@assets/Walkable logo_1750159513045.png" 
+                  alt="Walkable" 
+                  className="h-8 w-auto"
+                />
               </div>
             </Link>
           </div>
