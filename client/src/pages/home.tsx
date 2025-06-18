@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/navbar";
 import { HeroSection } from "@/components/hero-section";
 import { FeaturesSection } from "@/components/features-section";
+import walkableLogo from "@assets/Walkable logo_1750231371495.png";
 
 export default function Home() {
   return (
@@ -14,9 +15,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="col-span-1 md:col-span-2">
-              <div className="text-white font-bold text-2xl mb-4">
-                Walkable
-              </div>
+              <img 
+                src={walkableLogo} 
+                alt="Walkable" 
+                className="h-12 w-auto mb-4"
+              />
               <p className="text-white/80 mb-6 max-w-md">
                 Discover cities through immersive self-guided audio walking
                 tours. Explore hidden stories, local culture, and fascinating

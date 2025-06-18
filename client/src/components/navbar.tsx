@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { User, Menu } from "lucide-react";
+import walkableLogo from "@assets/Walkable logo_1750231371495.png";
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -24,9 +25,11 @@ export function Navbar() {
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
             <Link href="/">
-              <div className="text-white font-bold text-2xl cursor-pointer">
-                Walkable
-              </div>
+              <img 
+                src={walkableLogo} 
+                alt="Walkable" 
+                className="h-10 w-auto cursor-pointer"
+              />
             </Link>
           </div>
 
