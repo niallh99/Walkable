@@ -259,6 +259,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Geocoding proxy endpoint
+  app.get("/api/geocode", async (req, res) => {
+    console.log("Geocoding endpoint hit with address:", req.query.address);
+    try {
+      const { address } = req.query;
+      
+      if (!address) {
+        return res.status(400).json({ error: "Address parameter is required" });
+      }
+      
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "Google API key not configured" });
+      }
+      
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address as string)}&key=${apiKey}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch from Google API');
+      }
+      
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error in geocoding:", error);
+      res.status(500).json({ error: "Failed to geocode address" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

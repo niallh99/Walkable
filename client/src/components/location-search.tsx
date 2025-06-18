@@ -33,22 +33,9 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
-    const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-    
-    if (!apiKey) {
-      console.error('VITE_GOOGLE_API_KEY is not available:', import.meta.env);
-      toast({
-        title: "Configuration Error",
-        description: "Google API key is not configured properly.",
-        variant: "destructive",
-      });
-      setIsSearching(false);
-      return;
-    }
-
     try {
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(searchQuery)}&key=${apiKey}`
+        `/api/geocode?address=${encodeURIComponent(searchQuery)}`
       );
       
       if (!response.ok) {
