@@ -28,7 +28,7 @@ const tourSchema = z.object({
   longitude: z.string().min(1, "Please select a location on the map"),
   duration: z.number().min(5, "Duration must be at least 5 minutes").max(300, "Duration cannot exceed 5 hours"),
   distance: z.string().min(1, "Please enter the walking distance"),
-  audioFileUrl: z.string().url("Please enter a valid audio file URL").optional().or(z.literal("")),
+  audioFileUrl: z.string().optional(),
 });
 
 type TourFormData = z.infer<typeof tourSchema>;
@@ -115,11 +115,29 @@ export default function CreateTour() {
     },
     onSuccess: () => {
       toast({
-        title: "Tour created successfully!",
-        description: "Your tour has been published and is now available for discovery.",
+        title: "🎉 Tour Created Successfully!",
+        description: "Your audio walking tour has been published and is now available for discovery.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
-      setLocation('/discover');
+      
+      // Show success dialog with options
+      setTimeout(() => {
+        const createAnother = confirm(
+          "Your tour has been created successfully!\n\nWould you like to create another tour?"
+        );
+        
+        if (createAnother) {
+          // Reset form and stay on create page
+          form.reset();
+          setCurrentStep(1);
+          setSelectedLocation(undefined);
+          setSelectedFile(null);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          // Go to discover page to see the tour
+          setLocation('/discover');
+        }
+      }, 1000);
     },
     onError: (error: Error) => {
       toast({
@@ -180,7 +198,17 @@ export default function CreateTour() {
   };
 
   const onSubmit = (data: TourFormData) => {
+    console.log('Form submitted with data:', data);
     createTourMutation.mutate(data);
+  };
+
+  const handleCreateTour = () => {
+    const formData = form.getValues();
+    console.log('Form validation errors:', form.formState.errors);
+    console.log('Form data before submit:', formData);
+    
+    // Trigger form submission
+    form.handleSubmit(onSubmit)();
   };
 
   if (!user) {
@@ -522,7 +550,8 @@ export default function CreateTour() {
                   </Button>
                 ) : (
                   <Button
-                    type="submit"
+                    type="button"
+                    onClick={handleCreateTour}
                     disabled={createTourMutation.isPending}
                     className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
                   >
