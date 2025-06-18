@@ -27,15 +27,10 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
   const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
   const searchLocation = async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
+    if (!searchQuery.trim()) return;
 
     setIsSearching(true);
     try {
@@ -55,13 +50,11 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
       } else {
         setSuggestions([]);
         setShowSuggestions(false);
-        if (searchQuery.length > 2) { // Only show error for meaningful searches
-          toast({
-            title: "No results found",
-            description: "Try searching with a different location name.",
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "No results found",
+          description: "Try searching with a different location name.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Geocoding error:', error);
@@ -70,8 +63,6 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
         description: "Unable to search for locations. Please try again.",
         variant: "destructive",
       });
-      setSuggestions([]);
-      setShowSuggestions(false);
     } finally {
       setIsSearching(false);
     }
@@ -84,25 +75,6 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSearch();
-    }
-  };
-
-  const handleQueryChange = (value: string) => {
-    setQuery(value);
-    
-    // Clear existing timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    
-    // Set new timeout for autocomplete
-    if (value.length > 2) {
-      searchTimeoutRef.current = setTimeout(() => {
-        searchLocation(value);
-      }, 300); // 300ms delay
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
     }
   };
 
@@ -130,7 +102,7 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
     onClear?.();
   };
 
-  // Close suggestions when clicking outside and cleanup timeout
+  // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
@@ -141,9 +113,6 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
     };
   }, []);
 
@@ -155,7 +124,7 @@ export function LocationSearch({ onLocationSelect, onClear, placeholder = "Searc
             type="text"
             placeholder={placeholder}
             value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
             onKeyPress={handleKeyPress}
             className="pr-10"
           />
