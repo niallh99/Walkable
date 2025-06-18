@@ -104,6 +104,54 @@ export default function Discover() {
     setSearchLocation(undefined);
   };
 
+  const handleShowNearbyTours = () => {
+    if (!userLocation || allTours.length === 0) {
+      // Fallback to showing all tours if no user location or no tours
+      setUserLocation(undefined);
+      setSearchLocation(undefined);
+      return;
+    }
+
+    // Find the nearest tour to user's location
+    let nearestTour = allTours[0];
+    let shortestDistance = Infinity;
+
+    allTours.forEach(tour => {
+      const tourLat = parseFloat(tour.latitude);
+      const tourLon = parseFloat(tour.longitude);
+      
+      // Calculate distance using Haversine formula
+      const R = 6371; // Earth's radius in km
+      const dLat = (tourLat - userLocation.latitude) * Math.PI / 180;
+      const dLon = (tourLon - userLocation.longitude) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(userLocation.latitude * Math.PI / 180) * Math.cos(tourLat * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+
+      if (distance < shortestDistance) {
+        shortestDistance = distance;
+        nearestTour = tour;
+      }
+    });
+
+    // Set search location to the nearest tour's location
+    const nearestLocation = {
+      latitude: parseFloat(nearestTour.latitude),
+      longitude: parseFloat(nearestTour.longitude),
+    };
+    
+    setSearchLocation(nearestLocation);
+    setUserLocation(undefined);
+    
+    toast({
+      title: "Showing nearest tours",
+      description: `Found tours near ${nearestTour.title}`,
+    });
+  };
+
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       history: 'bg-orange-100 text-orange-800',
@@ -208,11 +256,11 @@ export default function Discover() {
                   </p>
                   {userLocation && (
                     <Button
-                      onClick={() => setUserLocation(undefined)}
+                      onClick={handleShowNearbyTours}
                       variant="outline"
                       className="border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
                     >
-                      Show All Tours
+                      Show Nearby Tours
                     </Button>
                   )}
                 </div>
