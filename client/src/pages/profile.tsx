@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from "@/lib/queryClient";
 import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth-context";
@@ -432,6 +433,8 @@ export default function Profile() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      <Footer />
     </div>
   );
 }

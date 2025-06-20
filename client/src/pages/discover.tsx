@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { Navbar } from '@/components/navbar';
+import { Footer } from '@/components/footer';
 import { Tour } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -351,6 +352,8 @@ export default function Discover() {
           )}
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }
