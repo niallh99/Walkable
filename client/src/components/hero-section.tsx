@@ -43,7 +43,6 @@ export function HeroSection() {
               alt="City street perfect for walking tours"
               className="rounded-2xl shadow-2xl w-full h-auto"
             />
-            <div className="absolute inset-0 bg-walkable-cyan bg-opacity-10 rounded-2xl"></div>
 
           </div>
         </div>
