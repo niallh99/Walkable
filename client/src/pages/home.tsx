@@ -2,6 +2,7 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { HeroSection } from "@/components/hero-section";
 import { FeaturesSection } from "@/components/features-section";
+import { FeaturedTours } from "@/components/featured-tours";
 import walkableLogo from "@assets/Walkable logo_1750231371495.png";
 
 export default function Home() {
@@ -9,6 +10,7 @@ export default function Home() {
     <div className="min-h-screen">
       <Navbar />
       <HeroSection />
+      <FeaturedTours />
       <FeaturesSection />
       
       {/* Footer */}

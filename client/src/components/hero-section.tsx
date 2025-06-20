@@ -44,14 +44,7 @@ export function HeroSection() {
               className="rounded-2xl shadow-2xl w-full h-auto"
             />
             <div className="absolute inset-0 bg-walkable-cyan bg-opacity-10 rounded-2xl"></div>
-            <div className="absolute bottom-4 left-4 bg-white bg-opacity-95 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-walkable-cyan rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-gray-800">
-                  Live Audio Tour Active
-                </span>
-              </div>
-            </div>
+
           </div>
         </div>
       </div>
