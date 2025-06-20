@@ -105,69 +105,68 @@ export default function Discover() {
   const getLocationImage = (title: string) => {
     const lowerTitle = title.toLowerCase();
     
-    if (lowerTitle.includes('amsterdam') || lowerTitle.includes('canal')) {
-      return (
-        <div className="w-full h-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center">
-          <div className="text-center text-white">
-            <div className="text-4xl mb-2">🏛️</div>
-            <div className="text-sm font-medium">Amsterdam Canals</div>
-          </div>
-        </div>
-      );
-    }
+    // Generate stock photo URLs based on location/content
+    let imageUrl = '';
+    let altText = '';
     
-    if (lowerTitle.includes('san francisco') || lowerTitle.includes('downtown')) {
-      return (
-        <div className="w-full h-full bg-gradient-to-br from-orange-400 to-red-600 flex items-center justify-center">
-          <div className="text-center text-white">
-            <div className="text-4xl mb-2">🌁</div>
-            <div className="text-sm font-medium">San Francisco</div>
-          </div>
-        </div>
-      );
+    if (lowerTitle.includes('amsterdam') || lowerTitle.includes('canal')) {
+      imageUrl = 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=400&h=300&fit=crop&crop=center';
+      altText = 'Amsterdam Canals';
+    } else if (lowerTitle.includes('san francisco') || lowerTitle.includes('downtown')) {
+      imageUrl = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop&crop=center';
+      altText = 'San Francisco Downtown';
+    } else if (lowerTitle.includes('golden gate') || lowerTitle.includes('bridge')) {
+      imageUrl = 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=300&fit=crop&crop=center';
+      altText = 'Golden Gate Bridge';
+    } else if (lowerTitle.includes('chinatown')) {
+      imageUrl = 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&crop=center';
+      altText = 'Chinatown';
+    } else if (lowerTitle.includes('fisherman')) {
+      imageUrl = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop&crop=center';
+      altText = 'Fishermans Wharf';
+    } else if (lowerTitle.includes('beach') || lowerTitle.includes('boardwalk')) {
+      imageUrl = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop&crop=center';
+      altText = 'Beach';
+    } else if (lowerTitle.includes('art') || lowerTitle.includes('gallery')) {
+      imageUrl = 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&crop=center';
+      altText = 'Art Gallery';
+    } else if (lowerTitle.includes('park') || lowerTitle.includes('nature')) {
+      imageUrl = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop&crop=center';
+      altText = 'Park';
+    } else if (lowerTitle.includes('food') || lowerTitle.includes('culinary')) {
+      imageUrl = 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=300&fit=crop&crop=center';
+      altText = 'Food Tour';
+    } else if (lowerTitle.includes('historic') || lowerTitle.includes('history')) {
+      imageUrl = 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=300&fit=crop&crop=center';
+      altText = 'Historic District';
+    } else {
+      // Default city image
+      imageUrl = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=400&h=300&fit=crop&crop=center';
+      altText = 'City Tour';
     }
 
-    if (lowerTitle.includes('golden gate') || lowerTitle.includes('bridge')) {
-      return (
-        <div className="w-full h-full bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center">
-          <div className="text-center text-white">
-            <div className="text-4xl mb-2">🌉</div>
-            <div className="text-sm font-medium">Golden Gate</div>
-          </div>
-        </div>
-      );
-    }
-
-    if (lowerTitle.includes('chinatown')) {
-      return (
-        <div className="w-full h-full bg-gradient-to-br from-red-600 to-yellow-500 flex items-center justify-center">
-          <div className="text-center text-white">
-            <div className="text-4xl mb-2">🏮</div>
-            <div className="text-sm font-medium">Chinatown</div>
-          </div>
-        </div>
-      );
-    }
-
-    if (lowerTitle.includes('art') || lowerTitle.includes('gallery')) {
-      return (
-        <div className="w-full h-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-          <div className="text-center text-white">
-            <div className="text-4xl mb-2">🎨</div>
-            <div className="text-sm font-medium">Art District</div>
-          </div>
-        </div>
-      );
-    }
-
-    // Default city image
     return (
-      <div className="w-full h-full bg-gradient-to-br from-gray-500 to-slate-600 flex items-center justify-center">
-        <div className="text-center text-white">
-          <div className="text-4xl mb-2">🏙️</div>
-          <div className="text-sm font-medium">City Tour</div>
-        </div>
-      </div>
+      <img 
+        src={imageUrl} 
+        alt={altText}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          // Fallback if image fails to load
+          const target = e.target as HTMLImageElement;
+          target.style.display = 'none';
+          const parent = target.parentElement;
+          if (parent) {
+            parent.innerHTML = `
+              <div class="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                <div class="text-center text-white">
+                  <div class="text-4xl mb-2">🏙️</div>
+                  <div class="text-sm font-medium">${altText}</div>
+                </div>
+              </div>
+            `;
+          }
+        }}
+      />
     );
   };
 
