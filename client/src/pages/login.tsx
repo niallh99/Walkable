@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/auth-context";
 import { loginUser } from "@/lib/auth";
 import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -119,6 +120,8 @@ export default function Login() {
           </Card>
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Navbar } from '@/components/navbar';
+import { Footer } from '@/components/footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/components/auth-context';
 import { Link } from 'wouter';
@@ -579,6 +580,8 @@ export default function CreateTour() {
           </Form>
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }
