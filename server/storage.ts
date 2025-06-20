@@ -99,8 +99,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getToursByCreator(creatorId: number): Promise<Tour[]> {
-    const tours = await db.select().from(tours).where(eq(tours.creatorId, creatorId));
-    return tours;
+    const creatorTours = await db.select().from(tours).where(eq(tours.creatorId, creatorId));
+    return creatorTours;
   }
 
   async getCompletedToursByUser(userId: number): Promise<(CompletedTour & { tour: Tour })[]> {

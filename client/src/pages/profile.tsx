@@ -1,12 +1,97 @@
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { queryClient } from "@/lib/queryClient";
 import { Navbar } from "@/components/navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth-context";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { User, MapPin, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2 } from "lucide-react";
+import { Tour, UpdateUserProfile } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+
+type CompletedTour = {
+  id: number;
+  userId: number;
+  tourId: number;
+  completedAt: string;
+  tour: Tour;
+};
 
 export default function Profile() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+
+  // Fetch user's created tours
+  const { data: createdTours = [], isLoading: isLoadingTours } = useQuery<Tour[]>({
+    queryKey: ['/api/users', user?.id, 'tours'],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const response = await fetch(`/api/users/${user.id}/tours`);
+      if (!response.ok) throw new Error('Failed to fetch created tours');
+      return response.json();
+    },
+    enabled: !!user?.id,
+  });
+
+  // Fetch user's completed tours
+  const { data: completedTours = [], isLoading: isLoadingCompleted } = useQuery<CompletedTour[]>({
+    queryKey: ['/api/users', user?.id, 'completed-tours'],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const response = await fetch(`/api/users/${user.id}/completed-tours`);
+      if (!response.ok) throw new Error('Failed to fetch completed tours');
+      return response.json();
+    },
+    enabled: !!user?.id,
+  });
+
+  // Update profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (updateData: UpdateUserProfile) => {
+      if (!user?.id) throw new Error('User not authenticated');
+      const response = await apiRequest(`/api/users/${user.id}/profile`, 'PUT', updateData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      setIsEditDialogOpen(false);
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEditProfile = () => {
+    if (user) {
+      setEditUsername(user.username);
+      setEditEmail(user.email);
+      setIsEditDialogOpen(true);
+    }
+  };
+
+  const handleSaveProfile = () => {
+    updateProfileMutation.mutate({
+      username: editUsername,
+      email: editEmail,
+    });
+  };
 
   if (!user) {
     return (

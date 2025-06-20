@@ -2,7 +2,7 @@ import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, loginUserSchema, insertTourSchema } from "@shared/schema";
+import { insertUserSchema, loginUserSchema, insertTourSchema, updateUserProfileSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
@@ -379,6 +379,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error in geocoding:", error);
       res.status(500).json({ error: "Failed to geocode address" });
+    }
+  });
+
+  // Profile API Endpoints - Task 5.1
+
+  // Get user/creator profile data (GET /api/users/:id/profile)
+  app.get("/api/users/:id/profile", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid user ID"
+        });
+      }
+
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "User not found"
+        });
+      }
+
+      // Remove password from response
+      const { password, ...userProfile } = user;
+      res.json(userProfile);
+    } catch (error) {
+      console.error('Get user profile error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch user profile"
+      });
+    }
+  });
+
+  // Get tours uploaded by a specific creator (GET /api/users/:id/tours)
+  app.get("/api/users/:id/tours", async (req, res) => {
+    try {
+      const creatorId = parseInt(req.params.id);
+      
+      if (isNaN(creatorId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid creator ID"
+        });
+      }
+
+      const tours = await storage.getToursByCreator(creatorId);
+      res.json(tours);
+    } catch (error) {
+      console.error('Get creator tours error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch creator tours"
+      });
+    }
+  });
+
+  // Get tours completed/listened to by a user (GET /api/users/:id/completed-tours)
+  app.get("/api/users/:id/completed-tours", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid user ID"
+        });
+      }
+
+      const completedTours = await storage.getCompletedToursByUser(userId);
+      res.json(completedTours);
+    } catch (error) {
+      console.error('Get completed tours error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch completed tours"
+      });
+    }
+  });
+
+  // Update user profile information (PUT /api/users/:id/profile)
+  app.put("/api/users/:id/profile", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid user ID"
+        });
+      }
+
+      // Check if user is updating their own profile
+      if (req.user.userId !== userId) {
+        return res.status(403).json({
+          error: "Forbidden",
+          details: "You can only update your own profile"
+        });
+      }
+
+      const validatedData = updateUserProfileSchema.parse(req.body);
+      
+      // Check if email is already taken by another user
+      if (validatedData.email) {
+        const existingUser = await storage.getUserByEmail(validatedData.email);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(409).json({
+            error: "Conflict",
+            details: "Email already in use"
+          });
+        }
+      }
+
+      // Check if username is already taken by another user
+      if (validatedData.username) {
+        const existingUser = await storage.getUserByUsername(validatedData.username);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(409).json({
+            error: "Conflict",
+            details: "Username already taken"
+          });
+        }
+      }
+
+      const updatedUser = await storage.updateUserProfile(userId, validatedData);
+      
+      // Remove password from response
+      const { password, ...userProfile } = updatedUser;
+      res.json({
+        message: "Profile updated successfully",
+        user: userProfile
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to update profile"
+      });
+    }
+  });
+
+  // Mark tour as completed (POST /api/users/:id/completed-tours)
+  app.post("/api/users/:id/completed-tours", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { tourId } = req.body;
+      
+      if (isNaN(userId) || !tourId) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid user ID or tour ID"
+        });
+      }
+
+      // Check if user is marking their own completion
+      if (req.user.userId !== userId) {
+        return res.status(403).json({
+          error: "Forbidden",
+          details: "You can only mark tours as completed for yourself"
+        });
+      }
+
+      // Check if tour exists
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "Tour not found"
+        });
+      }
+
+      const completedTour = await storage.markTourAsCompleted(userId, tourId);
+      res.status(201).json({
+        message: "Tour marked as completed",
+        completedTour
+      });
+    } catch (error) {
+      console.error('Mark tour completed error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to mark tour as completed"
+      });
     }
   });
 
