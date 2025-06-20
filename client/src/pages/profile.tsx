@@ -37,7 +37,9 @@ export default function Profile() {
       if (!user?.id) return [];
       const response = await fetch(`/api/users/${user.id}/tours`);
       if (!response.ok) throw new Error('Failed to fetch created tours');
-      return response.json();
+      const data = await response.json();
+      console.log('Created tours data:', data);
+      return data;
     },
     enabled: !!user?.id,
   });
@@ -92,6 +94,11 @@ export default function Profile() {
       email: editEmail,
     });
   };
+
+  // Debug logging
+  console.log('Profile render - User:', user);
+  console.log('Profile render - Created tours:', createdTours, 'Loading:', isLoadingTours);
+  console.log('Profile render - Completed tours:', completedTours, 'Loading:', isLoadingCompleted);
 
   if (!user) {
     return (
@@ -213,11 +220,13 @@ export default function Profile() {
                         </div>
                       ))}
                       <div className="text-center pt-4">
-                        <Link href="/create-tour">
-                          <Button variant="outline" className="border-walkable-cyan text-walkable-cyan">
-                            Create Another Tour
-                          </Button>
-                        </Link>
+                        <Button 
+                          variant="outline" 
+                          className="border-walkable-cyan text-walkable-cyan"
+                          onClick={() => window.location.href = '/create-tour'}
+                        >
+                          Create Another Tour
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -227,11 +236,12 @@ export default function Profile() {
                       <p className="text-walkable-gray text-sm mb-4">
                         Share your local knowledge by creating your first audio tour
                       </p>
-                      <Link href="/create-tour">
-                        <Button className="bg-walkable-cyan hover:bg-walkable-cyan text-white">
-                          Create Your First Tour
-                        </Button>
-                      </Link>
+                      <Button 
+                        className="bg-walkable-cyan hover:bg-walkable-cyan text-white"
+                        onClick={() => window.location.href = '/create-tour'}
+                      >
+                        Create Your First Tour
+                      </Button>
                     </div>
                   )}
                 </CardContent>
@@ -280,11 +290,13 @@ export default function Profile() {
                         </div>
                       ))}
                       <div className="text-center pt-4">
-                        <Link href="/discover">
-                          <Button variant="outline" className="border-walkable-cyan text-walkable-cyan">
-                            Discover More Tours
-                          </Button>
-                        </Link>
+                        <Button 
+                          variant="outline" 
+                          className="border-walkable-cyan text-walkable-cyan"
+                          onClick={() => window.location.href = '/discover'}
+                        >
+                          Discover More Tours
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -294,11 +306,12 @@ export default function Profile() {
                       <p className="text-walkable-gray text-sm mb-4">
                         Start exploring amazing audio tours in your area
                       </p>
-                      <Link href="/discover">
-                        <Button className="bg-walkable-cyan hover:bg-walkable-cyan text-white">
-                          Discover Tours
-                        </Button>
-                      </Link>
+                      <Button 
+                        className="bg-walkable-cyan hover:bg-walkable-cyan text-white"
+                        onClick={() => window.location.href = '/discover'}
+                      >
+                        Discover Tours
+                      </Button>
                     </div>
                   )}
                 </CardContent>
