@@ -26,6 +26,13 @@ export const tours = pgTable("tours", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const completedTours = pgTable("completed_tours", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tourId: integer("tour_id").references(() => tours.id).notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -44,8 +51,15 @@ export const insertTourSchema = createInsertSchema(tours).omit({
   creatorId: true,
 });
 
+export const updateUserProfileSchema = createInsertSchema(users).pick({
+  username: true,
+  email: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertTour = z.infer<typeof insertTourSchema>;
 export type Tour = typeof tours.$inferSelect;
+export type CompletedTour = typeof completedTours.$inferSelect;
+export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
