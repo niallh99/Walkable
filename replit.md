@@ -102,6 +102,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+- June 20, 2025: Phase 5 User & Creator Profiles completed
+  - Backend API endpoints for user profiles, creator tours, and completed tours
+  - Profile page with real data display for created and completed tours
+  - Edit profile functionality with username and email updates
+  - Tour completion tracking system with database integration
+  - Protected API endpoints with proper authentication and authorization
+  - Profile information editing with validation and conflict checking
+
 - June 18, 2025: Phase 3 Create Tour Flow completed
   - Complete multi-step tour creation form with validation
   - Map-based location selection with search and click functionality

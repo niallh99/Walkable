@@ -158,7 +158,9 @@ export default function Profile() {
                       variant="outline"
                       size="sm"
                       className="border-walkable-cyan text-walkable-cyan"
+                      onClick={handleEditProfile}
                     >
+                      <Edit2 className="h-4 w-4 mr-2" />
                       Edit Profile
                     </Button>
                   </div>
@@ -171,54 +173,201 @@ export default function Profile() {
               {/* Created Tours */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <MapPin className="h-5 w-5" />
-                    <span>My Tours</span>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <MapPin className="h-5 w-5" />
+                      <span>My Tours</span>
+                    </div>
+                    <Badge variant="secondary">{createdTours.length}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-3">🎯</div>
-                    <h4 className="font-medium text-gray-900 mb-2">No tours created yet</h4>
-                    <p className="text-walkable-gray text-sm mb-4">
-                      Share your local knowledge by creating your first audio tour
-                    </p>
-                    <Link href="/create-tour">
-                      <Button className="bg-walkable-cyan hover:bg-walkable-cyan text-white">
-                        Create Your First Tour
-                      </Button>
-                    </Link>
-                  </div>
+                  {isLoadingTours ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-walkable-cyan" />
+                    </div>
+                  ) : createdTours.length > 0 ? (
+                    <div className="space-y-4">
+                      {createdTours.map((tour) => (
+                        <div key={tour.id} className="flex items-start space-x-3 p-4 border border-gray-200 rounded-lg hover:border-walkable-cyan transition-colors">
+                          <div className="w-12 h-12 bg-walkable-cyan rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Volume2 className="h-6 w-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-medium text-gray-900 truncate">{tour.title}</h4>
+                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">{tour.description}</p>
+                            <div className="flex items-center space-x-4 text-xs text-gray-500">
+                              <Badge variant="outline">{tour.category}</Badge>
+                              {tour.duration && (
+                                <div className="flex items-center space-x-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{tour.duration} min</span>
+                                </div>
+                              )}
+                              <div className="flex items-center space-x-1">
+                                <Calendar className="h-3 w-3" />
+                                <span>{new Date(tour.createdAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="text-center pt-4">
+                        <Link href="/create-tour">
+                          <Button variant="outline" className="border-walkable-cyan text-walkable-cyan">
+                            Create Another Tour
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-4xl mb-3">🎯</div>
+                      <h4 className="font-medium text-gray-900 mb-2">No tours created yet</h4>
+                      <p className="text-walkable-gray text-sm mb-4">
+                        Share your local knowledge by creating your first audio tour
+                      </p>
+                      <Link href="/create-tour">
+                        <Button className="bg-walkable-cyan hover:bg-walkable-cyan text-white">
+                          Create Your First Tour
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
               {/* Completed Tours */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Clock className="h-5 w-5" />
-                    <span>Completed Tours</span>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="h-5 w-5" />
+                      <span>Completed Tours</span>
+                    </div>
+                    <Badge variant="secondary">{completedTours.length}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-3">🚶‍♂️</div>
-                    <h4 className="font-medium text-gray-900 mb-2">No tours completed yet</h4>
-                    <p className="text-walkable-gray text-sm mb-4">
-                      Start exploring amazing audio tours in your area
-                    </p>
-                    <Link href="/discover">
-                      <Button className="bg-walkable-cyan hover:bg-walkable-cyan text-white">
-                        Discover Tours
-                      </Button>
-                    </Link>
-                  </div>
+                  {isLoadingCompleted ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-walkable-cyan" />
+                    </div>
+                  ) : completedTours.length > 0 ? (
+                    <div className="space-y-4">
+                      {completedTours.map((completedTour) => (
+                        <div key={completedTour.id} className="flex items-start space-x-3 p-4 border border-gray-200 rounded-lg hover:border-walkable-cyan transition-colors">
+                          <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Clock className="h-6 w-6 text-green-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-medium text-gray-900 truncate">{completedTour.tour.title}</h4>
+                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">{completedTour.tour.description}</p>
+                            <div className="flex items-center space-x-4 text-xs text-gray-500">
+                              <Badge variant="outline">{completedTour.tour.category}</Badge>
+                              {completedTour.tour.duration && (
+                                <div className="flex items-center space-x-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{completedTour.tour.duration} min</span>
+                                </div>
+                              )}
+                              <div className="flex items-center space-x-1">
+                                <Calendar className="h-3 w-3" />
+                                <span>Completed {new Date(completedTour.completedAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="text-center pt-4">
+                        <Link href="/discover">
+                          <Button variant="outline" className="border-walkable-cyan text-walkable-cyan">
+                            Discover More Tours
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-4xl mb-3">🚶‍♂️</div>
+                      <h4 className="font-medium text-gray-900 mb-2">No tours completed yet</h4>
+                      <p className="text-walkable-gray text-sm mb-4">
+                        Start exploring amazing audio tours in your area
+                      </p>
+                      <Link href="/discover">
+                        <Button className="bg-walkable-cyan hover:bg-walkable-cyan text-white">
+                          Discover Tours
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>
+              Make changes to your profile information here. Click save when you're done.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="username" className="text-right">
+                Username
+              </Label>
+              <Input
+                id="username"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              onClick={handleSaveProfile}
+              disabled={updateProfileMutation.isPending}
+              className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+            >
+              {updateProfileMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save changes'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
