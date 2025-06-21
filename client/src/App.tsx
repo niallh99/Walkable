@@ -8,7 +8,7 @@ import Home from "@/pages/home";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Discover from "@/pages/discover";
-import CreateTour from "@/pages/create-tour";
+import CreateTourNew from "@/pages/create-tour-new";
 import Profile from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 
@@ -19,7 +19,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/discover" component={Discover} />
-      <Route path="/create-tour" component={CreateTour} />
+      <Route path="/create-tour" component={CreateTourNew} />
       <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
