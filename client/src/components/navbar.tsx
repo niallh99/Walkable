@@ -35,7 +35,7 @@ export function Navbar() {
               <img 
                 src={walkableLogo} 
                 alt="Walkable" 
-                className="h-8 w-auto cursor-pointer"
+                className="h-10 w-auto cursor-pointer"
               />
             </Link>
           </div>
