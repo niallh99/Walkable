@@ -102,6 +102,7 @@ export default function CreateTourNew() {
     audioFileName: '',
   });
   const [selectedLocation, setSelectedLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number; address?: string} | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -262,6 +263,55 @@ export default function CreateTourNew() {
     setTourStops(newStops);
   };
 
+  const handleGetUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            address: 'Your current location'
+          };
+          setUserLocation(location);
+          toast({
+            title: "Location found",
+            description: "Map updated to your current location",
+          });
+        },
+        (error) => {
+          let message = "Unable to get your location";
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              message = "Location access denied. Please enable location services.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              message = "Location information unavailable.";
+              break;
+            case error.TIMEOUT:
+              message = "Location request timed out.";
+              break;
+          }
+          toast({
+            title: "Location error",
+            description: message,
+            variant: "destructive",
+          });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
+        }
+      );
+    } else {
+      toast({
+        title: "Geolocation not supported",
+        description: "Your browser doesn't support location services",
+        variant: "destructive",
+      });
+    }
+  };
+
   const validateStep2 = () => {
     return tourStops.length > 0;
   };
@@ -389,9 +439,10 @@ export default function CreateTourNew() {
         <InteractiveMap
           tours={[]}
           tourStops={tourStops}
+          userLocation={userLocation}
           selectedLocation={selectedLocation}
           onMapClick={handleMapClick}
-          onLocationRequest={() => {}}
+          onLocationRequest={handleGetUserLocation}
         />
       </div>
 
