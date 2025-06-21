@@ -86,11 +86,23 @@ export function FeaturedTours() {
               <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
                 <div className="relative">
                   <div className="aspect-[4/3] bg-gray-200 rounded-t-lg overflow-hidden">
-                    <img 
-                      src={getLocationImage(tour.title)}
-                      alt={tour.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
+                    {tour.coverImageUrl ? (
+                      <img 
+                        src={tour.coverImageUrl}
+                        alt={tour.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = getLocationImage(tour.title);
+                        }}
+                      />
+                    ) : (
+                      <img 
+                        src={getLocationImage(tour.title)}
+                        alt={tour.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    )}
                   </div>
                   <div className="absolute top-3 left-3">
                     <Badge className={getCategoryColor(tour.category)}>

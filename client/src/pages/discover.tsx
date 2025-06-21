@@ -380,7 +380,32 @@ export default function Discover() {
                     )}
                   </div>
 
-                  <Button className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white">
+                  <Button 
+                    className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+                    onClick={() => {
+                      if (selectedTour?.audioFileUrl) {
+                        const audio = new Audio(selectedTour.audioFileUrl);
+                        audio.play().catch((error) => {
+                          console.error('Error playing audio:', error);
+                          toast({
+                            title: "Audio playback failed",
+                            description: "Unable to play the tour audio. Please check your browser settings.",
+                            variant: "destructive",
+                          });
+                        });
+                        toast({
+                          title: "Tour started",
+                          description: "Audio guide is now playing",
+                        });
+                      } else {
+                        toast({
+                          title: "No audio available",
+                          description: "This tour doesn't have an audio guide yet.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
                     Start Tour
                   </Button>
                 </CardContent>
@@ -404,7 +429,30 @@ export default function Discover() {
               <Card key={tour.id} className="group cursor-pointer hover:shadow-lg transition-shadow">
                 <div className="relative">
                   <div className="aspect-[4/3] bg-gradient-to-br from-gray-300 to-gray-500 rounded-t-lg flex items-center justify-center overflow-hidden">
-                    {getLocationImage(tour.title)}
+                    {tour.coverImageUrl ? (
+                      <img 
+                        src={tour.coverImageUrl} 
+                        alt={tour.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.innerHTML = `
+                              <div class="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                                <div class="text-center text-white">
+                                  <div class="text-4xl mb-2">🏙️</div>
+                                  <div class="text-sm font-medium">${tour.title}</div>
+                                </div>
+                              </div>
+                            `;
+                          }
+                        }}
+                      />
+                    ) : (
+                      getLocationImage(tour.title)
+                    )}
                   </div>
                   <div className="absolute top-3 left-3">
                     <Badge className={getCategoryColor(tour.category)}>
@@ -435,7 +483,29 @@ export default function Discover() {
                   </div>
                   <Button 
                     className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
-                    onClick={() => handleTourSelect(tour)}
+                    onClick={() => {
+                      if (tour.audioFileUrl) {
+                        const audio = new Audio(tour.audioFileUrl);
+                        audio.play().catch((error) => {
+                          console.error('Error playing audio:', error);
+                          toast({
+                            title: "Audio playback failed",
+                            description: "Unable to play the tour audio. Please check your browser settings.",
+                            variant: "destructive",
+                          });
+                        });
+                        toast({
+                          title: "Tour started",
+                          description: "Audio guide is now playing",
+                        });
+                      } else {
+                        toast({
+                          title: "No audio available",
+                          description: "This tour doesn't have an audio guide yet.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
                   >
                     Start Tour
                   </Button>
