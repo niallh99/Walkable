@@ -413,11 +413,12 @@ export default function CreateTourNew() {
             <label className="block text-sm font-medium text-gray-700 mb-2">Audio Guide</label>
             <div className="flex gap-2">
               <Button
-                variant="default"
-                className="bg-walkable-cyan hover:bg-walkable-cyan-dark"
+                variant="outline"
+                disabled
+                className="text-gray-400"
               >
                 <Mic className="h-4 w-4 mr-2" />
-                Record Audio
+                Record Audio (Coming Soon)
               </Button>
               <Button
                 variant="outline"
@@ -451,7 +452,7 @@ export default function CreateTourNew() {
           <Button
             onClick={addStop}
             disabled={!currentStop.title || !selectedLocation || !currentStop.audioFile}
-            className="w-full bg-gray-400 hover:bg-gray-500 text-white"
+            className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white disabled:bg-gray-400"
           >
             Add This Stop
           </Button>

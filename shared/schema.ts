@@ -21,6 +21,7 @@ export const tours = pgTable("tours", {
   audioFileUrl: text("audio_file_url"),
   duration: integer("duration"), // in minutes
   distance: text("distance"), // e.g., "2.3 miles"
+  coverImageUrl: text("cover_image_url"),
   creatorId: integer("creator_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -331,8 +331,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cover image upload endpoint (protected route)
+  app.post("/api/upload/cover-image", authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "No image file provided"
+        });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      
+      res.json({
+        message: "Cover image uploaded successfully",
+        imageUrl: fileUrl,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size
+      });
+    } catch (error: any) {
+      console.error('Cover image upload error:', error);
+      
+      if (error.message.includes('Invalid file type')) {
+        return res.status(400).json({
+          error: "Invalid file type",
+          details: "Only image files (JPEG, PNG, GIF) are allowed"
+        });
+      }
+      
+      if (error.message.includes('File too large')) {
+        return res.status(400).json({
+          error: "File too large",
+          details: "Image file must be less than 10MB"
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to upload image file"
+      });
+    }
+  });
+
   // Audio file upload endpoint (protected route)
-  app.post("/api/tours/upload-audio", authenticateToken, audioUpload.single('audio'), async (req: any, res) => {
+  app.post("/api/upload/audio", authenticateToken, audioUpload.single('audio'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
