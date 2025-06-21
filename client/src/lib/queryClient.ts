@@ -8,14 +8,15 @@ async function throwIfResNotOk(res: Response) {
 }
 
 export async function apiRequest(
-  method: string,
   url: string,
-  data?: unknown | undefined,
+  options: RequestInit = {}
 ): Promise<Response> {
+  const { method = "GET", body: data, headers: providedHeaders = {} } = options;
   const token = localStorage.getItem('auth_token');
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...providedHeaders };
   
-  if (data) {
+  // Don't set Content-Type for FormData - let the browser handle it
+  if (data && !(data instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
   
@@ -26,7 +27,8 @@ export async function apiRequest(
   const res = await fetch(url, {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
+    // Only JSON.stringify if it's not FormData
+    body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
 

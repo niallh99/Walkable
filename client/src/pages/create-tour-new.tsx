@@ -112,10 +112,11 @@ export default function CreateTourNew() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('coverImage', file);
-      return apiRequest('/api/upload/cover-image', {
+      const response = await apiRequest('/api/upload/cover-image', {
         method: 'POST',
         body: formData,
       });
+      return response.json();
     },
   });
 
@@ -123,20 +124,21 @@ export default function CreateTourNew() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('audio', file);
-      return apiRequest('/api/upload/audio', {
+      const response = await apiRequest('/api/upload/audio', {
         method: 'POST',
         body: formData,
       });
+      return response.json();
     },
   });
 
   const createTourMutation = useMutation({
     mutationFn: async (tourData: any) => {
-      return apiRequest('/api/tours', {
+      const response = await apiRequest('/api/tours', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tourData),
+        body: tourData,
       });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
