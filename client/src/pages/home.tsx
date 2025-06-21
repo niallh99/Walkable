@@ -3,7 +3,7 @@ import { Footer } from "@/components/footer";
 import { HeroSection } from "@/components/hero-section";
 import { FeaturesSection } from "@/components/features-section";
 import { FeaturedTours } from "@/components/featured-tours";
-import walkableLogo from "@assets/Walkable logo 2_1750511889174.png";
+import walkableLogo from "@assets/Walkable logo 2_1750512018721.png";
 
 export default function Home() {
   return (

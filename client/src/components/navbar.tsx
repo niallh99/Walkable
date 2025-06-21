@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { User, Menu, X } from "lucide-react";
-import walkableLogo from "@assets/Walkable logo 2_1750511889174.png";
+import walkableLogo from "@assets/Walkable logo 2_1750512018721.png";
 
 export function Navbar() {
   const { user, logout } = useAuth();
