@@ -200,6 +200,8 @@ export default function CreateTourNew() {
         latitude: location.latitude,
         longitude: location.longitude,
       }));
+      // Also set as active location to trigger map pan
+      setUserLocation(location);
     } catch (error) {
       console.error('Error handling location search:', error);
     }
@@ -440,6 +442,7 @@ export default function CreateTourNew() {
           tours={[]}
           tourStops={tourStops}
           userLocation={userLocation}
+          activeLocation={selectedLocation}
           selectedLocation={selectedLocation}
           onMapClick={handleMapClick}
           onLocationRequest={handleGetUserLocation}
