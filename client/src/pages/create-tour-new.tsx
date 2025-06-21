@@ -179,21 +179,29 @@ export default function CreateTourNew() {
 
   // Step 2: Add Stops
   const handleMapClick = (location: {latitude: number; longitude: number}) => {
-    setSelectedLocation(location);
-    setCurrentStop(prev => ({
-      ...prev,
-      latitude: location.latitude,
-      longitude: location.longitude,
-    }));
+    try {
+      setSelectedLocation(location);
+      setCurrentStop(prev => ({
+        ...prev,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      }));
+    } catch (error) {
+      console.error('Error handling map click:', error);
+    }
   };
 
   const handleLocationSearch = (location: {latitude: number; longitude: number; address: string}) => {
-    setSelectedLocation(location);
-    setCurrentStop(prev => ({
-      ...prev,
-      latitude: location.latitude,
-      longitude: location.longitude,
-    }));
+    try {
+      setSelectedLocation(location);
+      setCurrentStop(prev => ({
+        ...prev,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      }));
+    } catch (error) {
+      console.error('Error handling location search:', error);
+    }
   };
 
   const handleAudioUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -380,8 +388,10 @@ export default function CreateTourNew() {
       <div className="h-96 bg-gray-100 rounded-lg overflow-hidden">
         <InteractiveMap
           tours={[]}
+          tourStops={tourStops}
+          selectedLocation={selectedLocation}
           onMapClick={handleMapClick}
-          userLocation={selectedLocation}
+          onLocationRequest={() => {}}
         />
       </div>
 

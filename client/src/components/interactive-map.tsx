@@ -47,10 +47,20 @@ interface UserLocation {
   address?: string;
 }
 
+interface TourStop {
+  id: string;
+  title: string;
+  latitude: number;
+  longitude: number;
+  order: number;
+}
+
 interface InteractiveMapProps {
   tours: Tour[];
+  tourStops?: TourStop[];
   userLocation?: UserLocation;
   activeLocation?: UserLocation;
+  selectedLocation?: UserLocation;
   onLocationRequest: () => void;
   onTourSelect?: (tour: Tour) => void;
   onMapClick?: (location: UserLocation) => void;
@@ -85,7 +95,7 @@ function MapClickHandler({ onMapClick }: { onMapClick?: (location: UserLocation)
   return null;
 }
 
-export function InteractiveMap({ tours, userLocation, activeLocation, onLocationRequest, onTourSelect, onMapClick }: InteractiveMapProps) {
+export function InteractiveMap({ tours, tourStops = [], userLocation, activeLocation, selectedLocation, onLocationRequest, onTourSelect, onMapClick }: InteractiveMapProps) {
   const [isLoading, setIsLoading] = useState(false);
   const mapRef = useRef<L.Map>(null);
 
