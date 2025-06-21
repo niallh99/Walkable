@@ -35,7 +35,8 @@ const audioUpload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg'];
+    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/ogg', 'audio/x-m4a', 'audio/aac'];
+    console.log('Audio file mimetype:', file.mimetype);
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {

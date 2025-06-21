@@ -499,7 +499,7 @@ export default function CreateTourNew() {
             <input
               id="audio-upload"
               type="file"
-              accept="audio/*"
+              accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg"
               onChange={handleAudioUpload}
               className="hidden"
             />
@@ -622,7 +622,14 @@ export default function CreateTourNew() {
               order: stop.order,
             };
           }
-          return stop;
+          return {
+            title: stop.title,
+            description: stop.description,
+            latitude: stop.latitude.toString(),
+            longitude: stop.longitude.toString(),
+            audioFileUrl: '',
+            order: stop.order,
+          };
         })
       );
 
@@ -633,16 +640,20 @@ export default function CreateTourNew() {
         category: tourDetails.category,
         latitude: stopsWithAudio[0]?.latitude || '0',
         longitude: stopsWithAudio[0]?.longitude || '0',
-        audioFileUrl: stopsWithAudio[0]?.audioFileUrl,
+        audioFileUrl: stopsWithAudio[0]?.audioFileUrl || '',
         duration: 60, // Default duration
         distance: '2.5', // Default distance
         coverImageUrl,
-        stops: stopsWithAudio,
       };
 
       await createTourMutation.mutateAsync(tourData);
     } catch (error) {
       console.error('Error creating tour:', error);
+      toast({
+        title: "Error creating tour",
+        description: "Failed to create tour. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
