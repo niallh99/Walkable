@@ -83,17 +83,31 @@ function MapUpdater({ activeLocation }: { activeLocation?: UserLocation }) {
 function MapClickHandler({ onMapClick }: { onMapClick?: (location: UserLocation) => void }) {
   useMapEvents({
     click: (e) => {
-      if (onMapClick) {
-        onMapClick({
-          latitude: e.latlng.lat,
-          longitude: e.latlng.lng,
-        });
+      try {
+        if (onMapClick) {
+          onMapClick({
+            latitude: e.latlng.lat,
+            longitude: e.latlng.lng,
+          });
+        }
+      } catch (error) {
+        console.error('Map click error:', error);
       }
     },
   });
   
   return null;
 }
+
+// Create numbered stop icons
+const createNumberedIcon = (number: number) => {
+  return L.divIcon({
+    html: `<div style="background-color: #00BCD4; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${number}</div>`,
+    className: '',
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+};
 
 export function InteractiveMap({ tours, tourStops = [], userLocation, activeLocation, selectedLocation, onLocationRequest, onTourSelect, onMapClick }: InteractiveMapProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -187,6 +201,45 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
                 <p className="text-sm text-gray-600">
                   You are here
                 </p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* Tour Stops (numbered markers) */}
+        {tourStops.map((stop) => (
+          <Marker 
+            key={stop.id} 
+            position={[stop.latitude, stop.longitude]} 
+            icon={createNumberedIcon(stop.order)}
+          >
+            <Popup>
+              <div className="p-2">
+                <h4 className="font-semibold">Stop {stop.order}: {stop.title}</h4>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* Selected Location Marker (for new stop placement) */}
+        {selectedLocation && (
+          <Marker position={[selectedLocation.latitude, selectedLocation.longitude]} icon={selectedLocationIcon}>
+            <Popup>
+              <div className="p-2">
+                <h4 className="font-semibold">New Stop Location</h4>
+                <p className="text-sm text-gray-600">Fill in the details below to add this stop</p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* Active Location Marker (for searches) */}
+        {activeLocation && !selectedLocation && (
+          <Marker position={[activeLocation.latitude, activeLocation.longitude]} icon={selectedLocationIcon}>
+            <Popup>
+              <div className="p-2">
+                <h4 className="font-semibold">Selected Location</h4>
+                {activeLocation.address && <p className="text-sm text-gray-600">{activeLocation.address}</p>}
               </div>
             </Popup>
           </Marker>
