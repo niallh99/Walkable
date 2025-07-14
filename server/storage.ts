@@ -1,4 +1,4 @@
-import { users, tours, completedTours, type User, type InsertUser, type Tour, type InsertTour, type CompletedTour, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -13,7 +13,9 @@ export interface IStorage {
   // Tour methods
   getAllTours(): Promise<Tour[]>;
   getTour(id: number): Promise<Tour | undefined>;
+  getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[] }) | undefined>;
   createTour(insertTour: InsertTour & { creatorId: number }): Promise<Tour>;
+  createTourWithStops(tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour>;
   getNearbyTours(lat: number, lon: number, radiusKm: number): Promise<Tour[]>;
   getToursByCreator(creatorId: number): Promise<Tour[]>;
   
@@ -67,11 +69,42 @@ export class DatabaseStorage implements IStorage {
     return tour || undefined;
   }
 
+  async getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[] }) | undefined> {
+    const [tour] = await db.select().from(tours).where(eq(tours.id, id));
+    if (!tour) return undefined;
+
+    const stops = await db
+      .select()
+      .from(tourStops)
+      .where(eq(tourStops.tourId, id))
+      .orderBy(tourStops.order);
+
+    return { ...tour, stops };
+  }
+
   async createTour(tourData: InsertTour & { creatorId: number }): Promise<Tour> {
     const [tour] = await db
       .insert(tours)
       .values(tourData)
       .returning();
+    return tour;
+  }
+
+  async createTourWithStops(tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour> {
+    const [tour] = await db
+      .insert(tours)
+      .values(tourData)
+      .returning();
+
+    if (stops.length > 0) {
+      const stopsWithTourId = stops.map(stop => ({
+        ...stop,
+        tourId: tour.id,
+      }));
+
+      await db.insert(tourStops).values(stopsWithTourId);
+    }
+
     return tour;
   }
 

@@ -10,6 +10,7 @@ import Register from "@/pages/register";
 import Discover from "@/pages/discover";
 import CreateTourNew from "@/pages/create-tour-new";
 import Profile from "@/pages/profile";
+import TourDetail from "@/pages/tour-detail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/discover" component={Discover} />
       <Route path="/create-tour" component={CreateTourNew} />
       <Route path="/profile" component={Profile} />
+      <Route path="/tour/:id" component={TourDetail} />
       <Route component={NotFound} />
     </Switch>
   );

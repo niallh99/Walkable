@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Tour } from '@shared/schema';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,15 @@ const userLocationIcon = new L.Icon({
 
 const tourIcon = new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const tourStopIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -64,6 +73,7 @@ interface InteractiveMapProps {
   onLocationRequest: () => void;
   onTourSelect?: (tour: Tour) => void;
   onMapClick?: (location: UserLocation) => void;
+  showRoute?: boolean;
 }
 
 // Component to update map view when any location changes
@@ -109,7 +119,7 @@ const createNumberedIcon = (number: number) => {
   });
 };
 
-export function InteractiveMap({ tours, tourStops = [], userLocation, activeLocation, selectedLocation, onLocationRequest, onTourSelect, onMapClick }: InteractiveMapProps) {
+export function InteractiveMap({ tours, tourStops = [], userLocation, activeLocation, selectedLocation, onLocationRequest, onTourSelect, onMapClick, showRoute = false }: InteractiveMapProps) {
   const [isLoading, setIsLoading] = useState(false);
   const mapRef = useRef<L.Map>(null);
 
@@ -214,12 +224,31 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
             icon={createNumberedIcon(stop.order)}
           >
             <Popup>
-              <div className="p-2">
-                <h4 className="font-semibold">Stop {stop.order}: {stop.title}</h4>
+              <div className="text-center">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Volume2 className="h-4 w-4 text-walkable-cyan" />
+                  <span className="font-semibold">{stop.title}</span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Stop {stop.order}
+                </p>
               </div>
             </Popup>
           </Marker>
         ))}
+
+        {/* Walking Route between stops */}
+        {showRoute && tourStops.length > 1 && (
+          <Polyline
+            positions={tourStops
+              .sort((a, b) => a.order - b.order)
+              .map(stop => [stop.latitude, stop.longitude])}
+            color="#007acc"
+            weight={4}
+            opacity={0.8}
+            smoothFactor={1}
+          />
+        )}
 
         {/* Selected Location Marker (for new stop placement) */}
         {selectedLocation && (

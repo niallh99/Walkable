@@ -332,6 +332,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get tour with stops by ID
+  app.get("/api/tours/:id/details", async (req, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid tour ID"
+        });
+      }
+
+      const tourWithStops = await storage.getTourWithStops(tourId);
+      if (!tourWithStops) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "Tour not found"
+        });
+      }
+
+      res.json(tourWithStops);
+    } catch (error) {
+      console.error('Get tour details error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch tour details"
+      });
+    }
+  });
+
   // Cover image upload endpoint (protected route)
   app.post("/api/upload/cover-image", authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
     try {

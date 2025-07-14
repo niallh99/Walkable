@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { Navbar } from '@/components/navbar';
@@ -23,6 +24,7 @@ export default function Discover() {
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   // Active location is either search location or user location
   const activeLocation = searchLocation || userLocation;
@@ -87,7 +89,7 @@ export default function Discover() {
   };
 
   const handleTourSelect = (tour: Tour) => {
-    setSelectedTour(tour);
+    setLocation(`/tour/${tour.id}`);
   };
 
   const getCategoryColor = (category: string) => {
@@ -382,31 +384,9 @@ export default function Discover() {
 
                   <Button 
                     className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
-                    onClick={() => {
-                      if (selectedTour?.audioFileUrl) {
-                        const audio = new Audio(selectedTour.audioFileUrl);
-                        audio.play().catch((error) => {
-                          console.error('Error playing audio:', error);
-                          toast({
-                            title: "Audio playback failed",
-                            description: "Unable to play the tour audio. Please check your browser settings.",
-                            variant: "destructive",
-                          });
-                        });
-                        toast({
-                          title: "Tour started",
-                          description: "Audio guide is now playing",
-                        });
-                      } else {
-                        toast({
-                          title: "No audio available",
-                          description: "This tour doesn't have an audio guide yet.",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
+                    onClick={() => handleTourSelect(selectedTour)}
                   >
-                    Start Tour
+                    View Tour Details
                   </Button>
                 </CardContent>
               </Card>
@@ -483,31 +463,9 @@ export default function Discover() {
                   </div>
                   <Button 
                     className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
-                    onClick={() => {
-                      if (tour.audioFileUrl) {
-                        const audio = new Audio(tour.audioFileUrl);
-                        audio.play().catch((error) => {
-                          console.error('Error playing audio:', error);
-                          toast({
-                            title: "Audio playback failed",
-                            description: "Unable to play the tour audio. Please check your browser settings.",
-                            variant: "destructive",
-                          });
-                        });
-                        toast({
-                          title: "Tour started",
-                          description: "Audio guide is now playing",
-                        });
-                      } else {
-                        toast({
-                          title: "No audio available",
-                          description: "This tour doesn't have an audio guide yet.",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
+                    onClick={() => handleTourSelect(tour)}
                   >
-                    Start Tour
+                    View Tour Details
                   </Button>
                 </CardContent>
               </Card>
