@@ -45,6 +45,33 @@ const audioUpload = multer({
   }
 });
 
+// Configure multer for video file uploads
+const videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'video-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const videoUpload = multer({ 
+  storage: videoStorage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['video/mp4', 'video/mov', 'video/webm', 'video/quicktime'];
+    console.log('Video file mimetype:', file.mimetype);
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only video files (MP4, MOV, WebM) are allowed.'));
+    }
+  }
+});
+
 // Configure multer for cover image uploads
 const imageStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -101,6 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Access-Control-Allow-Methods', 'GET');
       if (path.endsWith('.mp3') || path.endsWith('.wav') || path.endsWith('.m4a') || path.endsWith('.ogg')) {
         res.setHeader('Content-Type', 'audio/mpeg');
+      }
+      if (path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm')) {
+        res.setHeader('Content-Type', 'video/mp4');
       }
     }
   }));
@@ -630,7 +660,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload video file
+  app.post("/api/upload/video", authenticateToken, videoUpload.single('video'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "No video file provided"
+        });
+      }
 
+      // Return the file URL for storage in tour data
+      const fileUrl = `/uploads/${req.file.filename}`;
+      
+      res.json({
+        message: "Video file uploaded successfully",
+        videoUrl: fileUrl,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size
+      });
+    } catch (error: any) {
+      console.error('Video upload error:', error);
+      
+      if (error.message.includes('Invalid file type')) {
+        return res.status(400).json({
+          error: "Invalid file type",
+          details: "Only video files (MP4, MOV, WebM) are allowed"
+        });
+      }
+      
+      if (error.message.includes('File too large')) {
+        return res.status(400).json({
+          error: "File too large",
+          details: "Video file must be less than 100MB"
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to upload video file"
+      });
+    }
+  });
 
   // Geocoding proxy endpoint
   app.get("/api/geocode", async (req, res) => {

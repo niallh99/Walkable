@@ -33,9 +33,13 @@ interface TourStop {
   latitude: number;
   longitude: number;
   audioFile: File | null;
+  videoFile: File | null;
   audioFileName: string;
+  videoFileName: string;
+  mediaType: 'audio' | 'video';
   order: number;
   existingAudioUrl?: string;
+  existingVideoUrl?: string;
 }
 
 // Step Progress Component
@@ -102,7 +106,10 @@ export default function CreateTourNew() {
     latitude: 0,
     longitude: 0,
     audioFile: null,
+    videoFile: null,
     audioFileName: '',
+    videoFileName: '',
+    mediaType: 'audio',
   });
   const [selectedLocation, setSelectedLocation] = useState<{latitude: number; longitude: number} | null>(null);
   const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number; address?: string} | null>(null);
@@ -145,9 +152,13 @@ export default function CreateTourNew() {
           latitude: parseFloat(stop.latitude) || 0,
           longitude: parseFloat(stop.longitude) || 0,
           audioFile: null,
+          videoFile: null,
           audioFileName: stop.audioFileUrl ? 'existing-audio.mp3' : '',
+          videoFileName: stop.videoFileUrl ? 'existing-video.mp4' : '',
+          mediaType: stop.mediaType || (stop.audioFileUrl ? 'audio' : stop.videoFileUrl ? 'video' : 'audio'),
           order: stop.order || index + 1,
           existingAudioUrl: stop.audioFileUrl || '',
+          existingVideoUrl: stop.videoFileUrl || '',
         }));
         setTourStops(formattedStops);
       }
@@ -172,6 +183,18 @@ export default function CreateTourNew() {
       const formData = new FormData();
       formData.append('audio', file);
       const response = await apiRequest('/api/upload/audio', {
+        method: 'POST',
+        body: formData,
+      });
+      return response.json();
+    },
+  });
+
+  const uploadVideoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('video', file);
+      const response = await apiRequest('/api/upload/video', {
         method: 'POST',
         body: formData,
       });
@@ -329,6 +352,23 @@ export default function CreateTourNew() {
         ...prev,
         audioFile: file,
         audioFileName: file.name,
+        videoFile: null,
+        videoFileName: '',
+        mediaType: 'audio',
+      }));
+    }
+  };
+
+  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setCurrentStop(prev => ({
+        ...prev,
+        videoFile: file,
+        videoFileName: file.name,
+        audioFile: null,
+        audioFileName: '',
+        mediaType: 'video',
       }));
     }
   };
@@ -343,7 +383,10 @@ export default function CreateTourNew() {
       latitude: selectedLocation.latitude,
       longitude: selectedLocation.longitude,
       audioFile: currentStop.audioFile || null,
+      videoFile: currentStop.videoFile || null,
       audioFileName: currentStop.audioFileName || '',
+      videoFileName: currentStop.videoFileName || '',
+      mediaType: currentStop.mediaType || 'audio',
       order: tourStops.length + 1,
     };
 
@@ -354,7 +397,10 @@ export default function CreateTourNew() {
       latitude: 0,
       longitude: 0,
       audioFile: null,
+      videoFile: null,
       audioFileName: '',
+      videoFileName: '',
+      mediaType: 'audio',
     });
     // Keep selectedLocation to maintain the cyan waypoint for next stop placement
     // This prevents the "Your Location" blue waypoint from reappearing
@@ -623,7 +669,35 @@ export default function CreateTourNew() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Audio Guide</label>
+            <label className="block text-sm font-medium text-gray-700 mb-3">Media Guide</label>
+            
+            {/* Media Type Selection */}
+            <div className="flex gap-4 mb-4">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="mediaType"
+                  value="audio"
+                  checked={currentStop.mediaType === 'audio'}
+                  onChange={() => setCurrentStop(prev => ({ ...prev, mediaType: 'audio', videoFile: null, videoFileName: '' }))}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium">🎵 Audio Guide</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="mediaType"
+                  value="video"
+                  checked={currentStop.mediaType === 'video'}
+                  onChange={() => setCurrentStop(prev => ({ ...prev, mediaType: 'video', audioFile: null, audioFileName: '' }))}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium">🎥 Video Guide</span>
+              </label>
+            </div>
+
+            {/* Upload Buttons */}
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -631,23 +705,46 @@ export default function CreateTourNew() {
                 className="text-gray-400"
               >
                 <Mic className="h-4 w-4 mr-2" />
-                Record Audio (Coming Soon)
+                Record Audio/Video (Coming Soon)
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => document.getElementById('audio-upload')?.click()}
-              >
-                Upload Audio
-              </Button>
+              {currentStop.mediaType === 'audio' ? (
+                <Button
+                  variant="outline"
+                  onClick={() => document.getElementById('audio-upload')?.click()}
+                >
+                  Upload Audio
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => document.getElementById('video-upload')?.click()}
+                >
+                  Upload Video
+                </Button>
+              )}
             </div>
-            {currentStop.audioFileName && (
+            
+            {/* File Status */}
+            {currentStop.audioFileName && currentStop.mediaType === 'audio' && (
               <p className="text-sm text-green-600 mt-2">✓ {currentStop.audioFileName}</p>
             )}
+            {currentStop.videoFileName && currentStop.mediaType === 'video' && (
+              <p className="text-sm text-green-600 mt-2">✓ {currentStop.videoFileName}</p>
+            )}
+            
+            {/* Hidden File Inputs */}
             <input
               id="audio-upload"
               type="file"
               accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg"
               onChange={handleAudioUpload}
+              className="hidden"
+            />
+            <input
+              id="video-upload"
+              type="file"
+              accept="video/*,.mp4,.mov,.webm"
+              onChange={handleVideoUpload}
               className="hidden"
             />
           </div>
@@ -689,6 +786,14 @@ export default function CreateTourNew() {
                     <div>
                       <h4 className="font-medium">{stop.title}</h4>
                       <p className="text-sm text-gray-600">{stop.description || 'No description'}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">
+                          {stop.mediaType === 'video' ? '🎥 Video' : '🎵 Audio'}
+                        </span>
+                        {(stop.audioFileName || stop.videoFileName || stop.existingAudioUrl || stop.existingVideoUrl) && (
+                          <span className="text-xs text-green-600">✓ Media uploaded</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -782,18 +887,30 @@ export default function CreateTourNew() {
         coverImageUrl = tourDetails.existingCoverImageUrl;
       }
 
-      // Upload audio files for all stops
-      const stopsWithAudio = await Promise.all(
+      // Upload audio/video files for all stops
+      const stopsWithMedia = await Promise.all(
         tourStops.map(async (stop) => {
           let audioUrl = '';
+          let videoUrl = '';
           
-          if (stop.audioFile) {
-            // New audio file uploaded
-            const audioResult = await uploadAudioMutation.mutateAsync(stop.audioFile);
-            audioUrl = audioResult.audioUrl;
-          } else if (stop.existingAudioUrl) {
-            // Keep existing audio file
-            audioUrl = stop.existingAudioUrl;
+          if (stop.mediaType === 'audio') {
+            if (stop.audioFile) {
+              // New audio file uploaded
+              const audioResult = await uploadAudioMutation.mutateAsync(stop.audioFile);
+              audioUrl = audioResult.audioUrl;
+            } else if (stop.existingAudioUrl) {
+              // Keep existing audio file
+              audioUrl = stop.existingAudioUrl;
+            }
+          } else if (stop.mediaType === 'video') {
+            if (stop.videoFile) {
+              // New video file uploaded
+              const videoResult = await uploadVideoMutation.mutateAsync(stop.videoFile);
+              videoUrl = videoResult.videoUrl;
+            } else if (stop.existingVideoUrl) {
+              // Keep existing video file
+              videoUrl = stop.existingVideoUrl;
+            }
           }
           
           return {
@@ -802,27 +919,31 @@ export default function CreateTourNew() {
             latitude: stop.latitude.toString(),
             longitude: stop.longitude.toString(),
             audioFileUrl: audioUrl,
+            videoFileUrl: videoUrl,
+            mediaType: stop.mediaType,
             order: stop.order,
           };
         })
       );
 
       // Calculate tour metrics from stops data
-      const totalAudioDuration = stopsWithAudio.length * 5; // Approximate 5 min per stop
-      const walkingDistance = stopsWithAudio.length > 1 ? (stopsWithAudio.length * 0.5).toFixed(1) : '0.5'; // Approximate 0.5km per stop
+      const totalMediaDuration = stopsWithMedia.length * 5; // Approximate 5 min per stop
+      const walkingDistance = stopsWithMedia.length > 1 ? (stopsWithMedia.length * 0.5).toFixed(1) : '0.5'; // Approximate 0.5km per stop
 
       // Create the complete tour data
       const tourData = {
         title: tourDetails.title,
         description: tourDetails.description,
         category: tourDetails.category,
-        latitude: stopsWithAudio[0]?.latitude || '0',
-        longitude: stopsWithAudio[0]?.longitude || '0',
-        audioFileUrl: stopsWithAudio[0]?.audioFileUrl || '',
-        duration: totalAudioDuration,
+        latitude: stopsWithMedia[0]?.latitude || '0',
+        longitude: stopsWithMedia[0]?.longitude || '0',
+        audioFileUrl: stopsWithMedia[0]?.audioFileUrl || '',
+        videoFileUrl: stopsWithMedia[0]?.videoFileUrl || '',
+        mediaType: stopsWithMedia[0]?.mediaType || 'audio',
+        duration: totalMediaDuration,
         distance: walkingDistance,
         coverImageUrl,
-        stops: stopsWithAudio, // Include stops data
+        stops: stopsWithMedia, // Include stops data
       };
 
       await createTourMutation.mutateAsync(tourData);

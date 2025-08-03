@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2 } from "lucide-react";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Tour, TourStop } from "@shared/schema";
 
@@ -19,6 +19,7 @@ export default function TourDetail() {
   const { id } = useParams();
   const { toast } = useToast();
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [currentVideo, setCurrentVideo] = useState<HTMLVideoElement | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<number | null>(null);
 
   const { data: tour, isLoading } = useQuery<TourWithStops>({
@@ -31,54 +32,125 @@ export default function TourDetail() {
         currentAudio.pause();
         currentAudio.src = '';
       }
+      if (currentVideo) {
+        currentVideo.pause();
+        currentVideo.src = '';
+      }
     };
-  }, [currentAudio]);
+  }, [currentAudio, currentVideo]);
 
   const playStop = (stop: TourStop, index: number) => {
-    if (!stop.audioFileUrl) {
+    const hasAudio = stop.audioFileUrl;
+    const hasVideo = stop.videoFileUrl;
+    const mediaType = stop.mediaType || (hasAudio ? 'audio' : hasVideo ? 'video' : null);
+
+    if (!hasAudio && !hasVideo) {
       toast({
-        title: "No audio available",
-        description: "This stop doesn't have an audio guide.",
+        title: "No media available",
+        description: "This stop doesn't have any audio or video guide.",
         variant: "destructive",
       });
       return;
     }
 
-    // Stop current audio if playing
+    // Stop current media if playing
     if (currentAudio) {
       currentAudio.pause();
-      setCurrentlyPlaying(null);
+      setCurrentAudio(null);
     }
+    if (currentVideo) {
+      currentVideo.pause();
+      setCurrentVideo(null);
+    }
+    setCurrentlyPlaying(null);
 
     // If clicking the same stop that's playing, just pause
     if (currentlyPlaying === index) {
-      setCurrentAudio(null);
       return;
     }
 
-    // Play new audio
-    const audio = new Audio(stop.audioFileUrl);
-    audio.play().catch((error) => {
-      console.error('Error playing audio:', error);
-      toast({
-        title: "Audio playback failed",
-        description: "Unable to play the audio. Please check your browser settings.",
-        variant: "destructive",
+    if (mediaType === 'video' && hasVideo && stop.videoFileUrl) {
+      // Create video element and play video
+      const video = document.createElement('video');
+      video.src = stop.videoFileUrl;
+      video.controls = true;
+      video.style.width = '100%';
+      video.style.maxWidth = '500px';
+      video.style.borderRadius = '8px';
+      
+      video.play().catch((error) => {
+        console.error('Error playing video:', error);
+        toast({
+          title: "Video playback failed",
+          description: "Unable to play the video. Please check your browser settings.",
+          variant: "destructive",
+        });
       });
-    });
 
-    audio.onended = () => {
-      setCurrentlyPlaying(null);
-      setCurrentAudio(null);
-    };
+      video.onended = () => {
+        setCurrentlyPlaying(null);
+        setCurrentVideo(null);
+      };
 
-    setCurrentAudio(audio);
-    setCurrentlyPlaying(index);
+      setCurrentVideo(video);
+      setCurrentlyPlaying(index);
 
-    toast({
-      title: "Playing audio",
-      description: `Now playing: ${stop.title}`,
-    });
+      // Show video in modal or overlay
+      const modalOverlay = document.createElement('div');
+      modalOverlay.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.8); display: flex; align-items: center; 
+        justify-content: center; z-index: 1000; padding: 20px;
+      `;
+      
+      const closeButton = document.createElement('button');
+      closeButton.innerHTML = '×';
+      closeButton.style.cssText = `
+        position: absolute; top: 20px; right: 30px; background: white;
+        border: none; border-radius: 50%; width: 40px; height: 40px;
+        font-size: 24px; cursor: pointer; z-index: 1001;
+      `;
+      
+      closeButton.onclick = () => {
+        video.pause();
+        document.body.removeChild(modalOverlay);
+        setCurrentlyPlaying(null);
+        setCurrentVideo(null);
+      };
+
+      modalOverlay.appendChild(video);
+      modalOverlay.appendChild(closeButton);
+      document.body.appendChild(modalOverlay);
+
+      toast({
+        title: "Playing video",
+        description: `Now playing: ${stop.title}`,
+      });
+    } else if (mediaType === 'audio' && hasAudio && stop.audioFileUrl) {
+      // Play audio
+      const audio = new Audio(stop.audioFileUrl);
+      audio.play().catch((error) => {
+        console.error('Error playing audio:', error);
+        toast({
+          title: "Audio playback failed",
+          description: "Unable to play the audio. Please check your browser settings.",
+          variant: "destructive",
+        });
+      });
+
+      audio.onended = () => {
+        setCurrentlyPlaying(null);
+        setCurrentAudio(null);
+      };
+
+      setCurrentAudio(audio);
+      setCurrentlyPlaying(index);
+
+      toast({
+        title: "Playing audio",
+        description: `Now playing: ${stop.title}`,
+      });
+    }
   };
 
   const getCategoryColor = (category: string) => {
@@ -182,7 +254,7 @@ export default function TourDetail() {
                 </div>
                 <div className="flex items-center">
                   <Volume2 className="h-4 w-4 mr-1" />
-                  <span>{tourStops.length} audio stops</span>
+                  <span>{tourStops.length} media stops</span>
                 </div>
               </div>
             </div>
@@ -195,15 +267,15 @@ export default function TourDetail() {
           <div className="w-96 bg-white border-r border-gray-200 overflow-y-auto">
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Audio Tour Summary
+                Media Tour Summary
               </h2>
               
               <div className="space-y-4">
                 {!hasStops ? (
                   <div className="text-center py-8 text-gray-500">
                     <Volume2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium">No audio stops available</p>
-                    <p className="text-sm">This tour doesn't have detailed audio stops yet.</p>
+                    <p className="text-lg font-medium">No media stops available</p>
+                    <p className="text-sm">This tour doesn't have detailed audio or video stops yet.</p>
                   </div>
                 ) : (
                   tourStops.map((stop, index) => (
@@ -221,7 +293,11 @@ export default function TourDetail() {
                             {currentlyPlaying === index ? (
                               <Pause className="h-4 w-4" />
                             ) : (
-                              <Play className="h-4 w-4" />
+                              (stop.mediaType === 'video' || stop.videoFileUrl) ? (
+                                <Video className="h-4 w-4" />
+                              ) : (
+                                <Play className="h-4 w-4" />
+                              )
                             )}
                           </div>
                         </div>
@@ -238,6 +314,11 @@ export default function TourDetail() {
                           <p className="text-sm text-gray-600 line-clamp-2">
                             {stop.description}
                           </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-500">
+                              {(stop.mediaType === 'video' || stop.videoFileUrl) ? '🎥 Video' : '🎵 Audio'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </CardContent>

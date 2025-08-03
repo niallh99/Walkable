@@ -35,6 +35,8 @@ export const tourStops = pgTable("tour_stops", {
   latitude: text("latitude").notNull(),
   longitude: text("longitude").notNull(),
   audioFileUrl: text("audio_file_url"),
+  videoFileUrl: text("video_file_url"),
+  mediaType: text("media_type").default('audio'), // 'audio' | 'video'
   order: integer("order").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
