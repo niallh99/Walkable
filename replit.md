@@ -100,6 +100,14 @@ Walkable is a full-stack web application that allows users to discover and creat
 
 Preferred communication style: Simple, everyday language.
 
+## Design Standards
+
+### Map Waypoint Design
+- **Standard waypoint icon**: Cyan circular design (#00BCD4) with white border and shadow
+- **Implementation**: `L.divIcon` with CSS styling using `background-color: #00BCD4`
+- **Usage**: Applied consistently across all map interactions (search results, tour stops, location placement)
+- **Features**: 30px diameter, white border, drop shadow, center-aligned icons/text
+
 ## Recent Changes
 
 - June 20, 2025: Phase 5 User & Creator Profiles completed

@@ -307,8 +307,8 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* User Location Marker */}
-        {userLocation && (
+        {/* User Location Marker - only show if no selected location (search result) */}
+        {userLocation && !selectedLocation && (
           <Marker
             position={[userLocation.latitude, userLocation.longitude]}
             icon={userLocationIcon}
@@ -361,11 +361,27 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
 
         {/* Selected Location Marker (for new stop placement) */}
         {selectedLocation && (
-          <Marker position={[selectedLocation.latitude, selectedLocation.longitude]} icon={selectedLocationIcon}>
+          <Marker 
+            position={[selectedLocation.latitude, selectedLocation.longitude]} 
+            icon={selectedLocationIcon}
+            draggable={true}
+            eventHandlers={{
+              dragend: (e) => {
+                const marker = e.target;
+                const position = marker.getLatLng();
+                if (onMapClick) {
+                  onMapClick({
+                    latitude: position.lat,
+                    longitude: position.lng
+                  });
+                }
+              }
+            }}
+          >
             <Popup>
               <div className="p-2">
-                <h4 className="font-semibold">New Stop Location</h4>
-                <p className="text-sm text-gray-600">Fill in the details below to add this stop</p>
+                <h4 className="font-semibold">Tour Starting Point</h4>
+                <p className="text-sm text-gray-600">Drag to reposition or click map to place elsewhere</p>
               </div>
             </Popup>
           </Marker>
