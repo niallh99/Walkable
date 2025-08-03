@@ -367,6 +367,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           latitude: stop.latitude || '',
           longitude: stop.longitude || '',
           audioFileUrl: stop.audioFileUrl || '',
+          videoFileUrl: stop.videoFileUrl || '',
+          mediaType: stop.mediaType || 'audio',
           order: stop.order || 1,
         }));
 
@@ -498,6 +500,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           latitude: stop.latitude || '',
           longitude: stop.longitude || '',
           audioFileUrl: stop.audioFileUrl || '',
+          videoFileUrl: stop.videoFileUrl || '',
+          mediaType: stop.mediaType || 'audio',
           order: stop.order || 1,
         }));
 
