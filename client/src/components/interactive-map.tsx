@@ -77,14 +77,18 @@ interface InteractiveMapProps {
 }
 
 // Component to update map view when any location changes
-function MapUpdater({ activeLocation }: { activeLocation?: UserLocation }) {
+function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocation; tourStops?: TourStop[] }) {
   const map = useMap();
   
   useEffect(() => {
-    if (activeLocation) {
+    if (tourStops && tourStops.length > 0) {
+      // If we have tour stops, fit the map to show all stops
+      const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
+      map.fitBounds(bounds, { padding: [20, 20] });
+    } else if (activeLocation) {
       map.setView([activeLocation.latitude, activeLocation.longitude], 13);
     }
-  }, [activeLocation, map]);
+  }, [activeLocation, tourStops, map]);
   
   return null;
 }
@@ -126,9 +130,16 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
   // Default to San Francisco if no location available
   const defaultCenter: [number, number] = [37.7749, -122.4194];
   const currentLocation = activeLocation || userLocation;
-  const center: [number, number] = currentLocation 
-    ? [currentLocation.latitude, currentLocation.longitude] 
-    : defaultCenter;
+  
+  // If we have tour stops, center on the first stop
+  let center: [number, number];
+  if (tourStops.length > 0) {
+    center = [tourStops[0].latitude, tourStops[0].longitude];
+  } else if (currentLocation) {
+    center = [currentLocation.latitude, currentLocation.longitude];
+  } else {
+    center = defaultCenter;
+  }
 
   const handleGetLocation = async () => {
     setIsLoading(true);
@@ -188,7 +199,7 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
         ref={mapRef}
         className="rounded-lg"
       >
-        <MapUpdater activeLocation={activeLocation || userLocation} />
+        <MapUpdater activeLocation={activeLocation || userLocation} tourStops={tourStops} />
         <MapClickHandler onMapClick={onMapClick} />
         
         <TileLayer
