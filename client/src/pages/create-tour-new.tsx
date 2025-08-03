@@ -154,20 +154,6 @@ export default function CreateTourNew() {
     }
   }, [existingTour, isEditMode]);
 
-  // Prevent navigation during tour creation
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isCreating || createTourMutation.isPending) {
-        e.preventDefault();
-        e.returnValue = 'Your tour is being created. Are you sure you want to leave?';
-        return e.returnValue;
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isCreating, createTourMutation.isPending]);
-
   // Upload mutations
   const uploadCoverImageMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -262,6 +248,20 @@ export default function CreateTourNew() {
       deleteTourMutation.mutate();
     }
   };
+
+  // Prevent navigation during tour creation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isCreating || createTourMutation.isPending) {
+        e.preventDefault();
+        e.returnValue = 'Your tour is being created. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isCreating, createTourMutation.isPending]);
 
   // Step 1: Tour Details
   const handleCoverImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
