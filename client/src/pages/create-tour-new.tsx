@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
+import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle, Loader2 } from 'lucide-react';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { useToast } from '@/hooks/use-toast';
@@ -106,6 +106,7 @@ export default function CreateTourNew() {
   });
   const [selectedLocation, setSelectedLocation] = useState<{latitude: number; longitude: number} | null>(null);
   const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number; address?: string} | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -153,6 +154,20 @@ export default function CreateTourNew() {
     }
   }, [existingTour, isEditMode]);
 
+  // Prevent navigation during tour creation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isCreating || createTourMutation.isPending) {
+        e.preventDefault();
+        e.returnValue = 'Your tour is being created. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isCreating, createTourMutation.isPending]);
+
   // Upload mutations
   const uploadCoverImageMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -190,6 +205,7 @@ export default function CreateTourNew() {
       return response.json();
     },
     onSuccess: (data: any) => {
+      setIsCreating(false);
       queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
       queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/details`] });
       // Invalidate user's tours list to show the new tour on profile page
@@ -203,9 +219,10 @@ export default function CreateTourNew() {
       setLocation('/profile');
     },
     onError: (error: any) => {
+      setIsCreating(false);
       toast({
-        title: isEditMode ? "Error updating tour" : "Error creating tour",
-        description: error.message || `Failed to ${isEditMode ? 'update' : 'create'} tour. Please try again.`,
+        title: isEditMode ? "Tour not updated" : "Tour not created",
+        description: error.message || `${isEditMode ? 'Update' : 'Creation'} failed. Please try again.`,
         variant: "destructive",
       });
     },
@@ -733,6 +750,27 @@ export default function CreateTourNew() {
   );
 
   const handleCreateTour = async () => {
+    // Prevent multiple submissions
+    if (isCreating || createTourMutation.isPending) {
+      return;
+    }
+
+    if (tourStops.length === 0) {
+      toast({
+        title: "No stops added",
+        description: "Please add at least one stop to your tour.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Set creating state and show notification
+    setIsCreating(true);
+    toast({
+      title: isEditMode ? "Updating tour..." : "Creating tour...",
+      description: "Please wait while we process your tour.",
+    });
+
     try {
       // Upload cover image first
       let coverImageUrl = '';
@@ -789,10 +827,11 @@ export default function CreateTourNew() {
 
       await createTourMutation.mutateAsync(tourData);
     } catch (error) {
+      setIsCreating(false);
       console.error('Error creating tour:', error);
       toast({
-        title: "Error creating tour",
-        description: "Failed to create tour. Please try again.",
+        title: isEditMode ? "Tour not updated" : "Tour not created",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -878,19 +917,23 @@ export default function CreateTourNew() {
           variant="outline"
           onClick={prevStep}
           className="flex-1"
-          disabled={createTourMutation.isPending}
+          disabled={isCreating || createTourMutation.isPending}
         >
           Back
         </Button>
         <Button
           onClick={handleCreateTour}
-          disabled={createTourMutation.isPending}
+          disabled={isCreating || createTourMutation.isPending}
           className="flex-1 bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
         >
-          {createTourMutation.isPending 
-            ? (isEditMode ? 'Updating Tour...' : 'Creating Tour...') 
-            : (isEditMode ? 'Update Tour' : 'Create Tour')
-          }
+          {(isCreating || createTourMutation.isPending) ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {isEditMode ? 'Updating Tour...' : 'Creating Tour...'}
+            </div>
+          ) : (
+            isEditMode ? 'Update Tour' : 'Create Tour'
+          )}
         </Button>
       </div>
     </div>
