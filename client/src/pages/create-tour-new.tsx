@@ -1007,24 +1007,51 @@ export default function CreateTourNew() {
                   <p className="text-sm text-gray-600">{stop.description}</p>
                 )}
                 <div className="flex items-center gap-2 mt-1">
-                  {stop.audioFile ? (
-                    <div className="flex items-center gap-2">
-                      <audio controls className="h-8">
-                        <source src={URL.createObjectURL(stop.audioFile)} type={stop.audioFile.type} />
-                        Your browser does not support the audio element.
-                      </audio>
-                      <p className="text-xs text-gray-500">{stop.audioFileName}</p>
-                    </div>
-                  ) : stop.existingAudioUrl ? (
-                    <div className="flex items-center gap-2">
-                      <audio controls className="h-8">
-                        <source src={stop.existingAudioUrl} />
-                        Your browser does not support the audio element.
-                      </audio>
-                      <p className="text-xs text-gray-500">Existing audio file</p>
-                    </div>
+                  <span className="text-xs text-gray-500">
+                    {stop.mediaType === 'video' ? '🎥 Video' : '🎵 Audio'}
+                  </span>
+                  {stop.mediaType === 'video' ? (
+                    // Video handling
+                    stop.videoFile ? (
+                      <div className="flex items-center gap-2">
+                        <video controls className="h-16 w-24 rounded">
+                          <source src={URL.createObjectURL(stop.videoFile)} type={stop.videoFile.type} />
+                          Your browser does not support the video element.
+                        </video>
+                        <p className="text-xs text-gray-500">{stop.videoFileName}</p>
+                      </div>
+                    ) : stop.existingVideoUrl ? (
+                      <div className="flex items-center gap-2">
+                        <video controls className="h-16 w-24 rounded">
+                          <source src={stop.existingVideoUrl} />
+                          Your browser does not support the video element.
+                        </video>
+                        <p className="text-xs text-gray-500">Existing video file</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-500">No video file</p>
+                    )
                   ) : (
-                    <p className="text-xs text-red-500">No audio file</p>
+                    // Audio handling
+                    stop.audioFile ? (
+                      <div className="flex items-center gap-2">
+                        <audio controls className="h-8">
+                          <source src={URL.createObjectURL(stop.audioFile)} type={stop.audioFile.type} />
+                          Your browser does not support the audio element.
+                        </audio>
+                        <p className="text-xs text-gray-500">{stop.audioFileName}</p>
+                      </div>
+                    ) : stop.existingAudioUrl ? (
+                      <div className="flex items-center gap-2">
+                        <audio controls className="h-8">
+                          <source src={stop.existingAudioUrl} />
+                          Your browser does not support the audio element.
+                        </audio>
+                        <p className="text-xs text-gray-500">Existing audio file</p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-500">No audio file</p>
+                    )
                   )}
                 </div>
               </div>
