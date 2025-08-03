@@ -41,13 +41,11 @@ const tourStopIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const selectedLocationIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [30, 49],
-  iconAnchor: [15, 49],
-  popupAnchor: [1, -42],
-  shadowSize: [41, 41]
+const selectedLocationIcon = L.divIcon({
+  html: `<div style="background-color: #00BCD4; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>`,
+  className: '',
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
 });
 
 interface UserLocation {
@@ -96,7 +94,7 @@ function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocati
       }
       
       prevActiveLocationRef.current = activeLocation;
-      prevTourStopsRef.current = tourStops;
+      prevTourStopsRef.current = tourStops || [];
     }
   }, [activeLocation, tourStops, map]);
   

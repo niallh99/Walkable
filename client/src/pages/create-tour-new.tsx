@@ -221,7 +221,7 @@ export default function CreateTourNew() {
   };
 
   const addStop = () => {
-    if (!currentStop.title || !selectedLocation || !currentStop.audioFile) return;
+    if (!currentStop.title || !selectedLocation) return;
 
     const newStop: TourStop = {
       id: Date.now().toString(),
@@ -229,8 +229,8 @@ export default function CreateTourNew() {
       description: currentStop.description || '',
       latitude: selectedLocation.latitude,
       longitude: selectedLocation.longitude,
-      audioFile: currentStop.audioFile,
-      audioFileName: currentStop.audioFileName,
+      audioFile: currentStop.audioFile || null,
+      audioFileName: currentStop.audioFileName || '',
       order: tourStops.length + 1,
     };
 
@@ -443,9 +443,9 @@ export default function CreateTourNew() {
         <InteractiveMap
           tours={[]}
           tourStops={tourStops}
-          userLocation={userLocation}
-          activeLocation={selectedLocation}
-          selectedLocation={selectedLocation}
+          userLocation={userLocation || undefined}
+          activeLocation={selectedLocation || undefined}
+          selectedLocation={selectedLocation || undefined}
           onMapClick={handleMapClick}
           onLocationRequest={handleGetUserLocation}
         />
@@ -517,11 +517,13 @@ export default function CreateTourNew() {
 
           <Button
             onClick={addStop}
-            disabled={!currentStop.title || !selectedLocation || !currentStop.audioFile}
+            disabled={!currentStop.title || !selectedLocation}
             className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white disabled:bg-gray-400"
           >
             Add This Stop
           </Button>
+          
+
         </div>
       </div>
 
