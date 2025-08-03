@@ -273,6 +273,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Google Directions API proxy
+  app.get("/api/directions", async (req, res) => {
+    try {
+      const { origin, destination, waypoints, mode = 'walking' } = req.query;
+      
+      if (!origin || !destination) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Origin and destination are required"
+        });
+      }
+
+      const googleApiKey = process.env.GOOGLE_API_KEY;
+      if (!googleApiKey) {
+        return res.status(500).json({
+          error: "Internal server error",
+          details: "Google API key not configured"
+        });
+      }
+
+      const params = new URLSearchParams({
+        origin: origin as string,
+        destination: destination as string,
+        mode: mode as string,
+        key: googleApiKey
+      });
+
+      if (waypoints) {
+        params.append('waypoints', waypoints as string);
+      }
+
+      const googleUrl = `https://maps.googleapis.com/maps/api/directions/json?${params}`;
+      const response = await fetch(googleUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Directions API error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to fetch directions"
+      });
+    }
+  });
+
   // Create tour (protected route)
   app.post("/api/tours", authenticateToken, async (req: any, res) => {
     try {

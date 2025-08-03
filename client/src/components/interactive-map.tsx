@@ -113,6 +113,41 @@ function MapClickHandler({ onMapClick }: { onMapClick?: (location: UserLocation)
   return null;
 }
 
+// Decode Google's polyline encoding
+const decodePolyline = (encoded: string): [number, number][] => {
+  const poly: [number, number][] = [];
+  let index = 0;
+  const len = encoded.length;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < len) {
+    let b;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    poly.push([lat / 1e5, lng / 1e5]);
+  }
+  return poly;
+};
+
 // Create numbered stop icons
 const createNumberedIcon = (number: number) => {
   return L.divIcon({
@@ -163,27 +198,25 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
         const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
         const coordinates = sortedStops.map(stop => [stop.longitude, stop.latitude]);
         
-        // Use OpenRouteService for walking directions
-        const response = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking', {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
-            'Authorization': '5b3ce3597851110001cf6248a1e8b1e8b8974fa494d746b7b6582b7c', // Free tier API key
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify({
-            coordinates: coordinates,
-            format: 'geojson'
-          })
-        });
+        // Create waypoints for Google Directions API
+        const waypoints = sortedStops.slice(1, -1).map(stop => 
+          `${stop.latitude},${stop.longitude}`
+        ).join('|');
+        
+        const origin = `${sortedStops[0].latitude},${sortedStops[0].longitude}`;
+        const destination = `${sortedStops[sortedStops.length - 1].latitude},${sortedStops[sortedStops.length - 1].longitude}`;
+        
+        // Use Google Directions API for walking directions
+        const directionsUrl = `/api/directions?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${encodeURIComponent(waypoints)}&mode=walking`;
+        
+        const response = await fetch(directionsUrl);
 
         if (response.ok) {
           const data = await response.json();
-          if (data.features && data.features[0] && data.features[0].geometry) {
-            const routeCoordinates = data.features[0].geometry.coordinates.map(
-              (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
-            );
-            setWalkingRoute(routeCoordinates);
+          if (data.routes && data.routes[0] && data.routes[0].overview_polyline) {
+            // Decode the polyline from Google Directions API
+            const decodedRoute = decodePolyline(data.routes[0].overview_polyline.points);
+            setWalkingRoute(decodedRoute);
           } else {
             // Fallback to straight lines if routing fails
             const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
@@ -305,11 +338,9 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
         ))}
 
         {/* Walking Route between stops */}
-        {showRoute && tourStops.length > 1 && (
+        {showRoute && walkingRoute.length > 1 && (
           <Polyline
-            positions={tourStops
-              .sort((a, b) => a.order - b.order)
-              .map(stop => [stop.latitude, stop.longitude])}
+            positions={walkingRoute}
             color="#007acc"
             weight={4}
             opacity={0.8}
