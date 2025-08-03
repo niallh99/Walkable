@@ -13,6 +13,7 @@ import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, Arrow
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/components/auth-context';
 import { apiRequest } from '@/lib/queryClient';
 
 // Types
@@ -107,6 +108,7 @@ export default function CreateTourNew() {
   const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number; address?: string} | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   // Check if we're in edit mode
@@ -187,9 +189,13 @@ export default function CreateTourNew() {
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
       queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/details`] });
+      // Invalidate user's tours list to show the new tour on profile page
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'tours'] });
+      }
       toast({
         title: isEditMode ? "Tour updated successfully!" : "Tour created successfully!",
         description: isEditMode ? "Your tour changes have been saved." : "Your tour is now live and ready for discovery.",
@@ -215,6 +221,10 @@ export default function CreateTourNew() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
+      // Invalidate user's tours list to update profile page after deletion
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'tours'] });
+      }
       toast({
         title: "Tour deleted successfully!",
         description: "Your tour has been permanently deleted.",
