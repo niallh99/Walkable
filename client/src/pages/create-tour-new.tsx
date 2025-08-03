@@ -268,6 +268,24 @@ export default function CreateTourNew() {
     setTourStops(newStops);
   };
 
+  const editStop = (index: number) => {
+    const stopToEdit = tourStops[index];
+    setCurrentStop({
+      title: stopToEdit.title,
+      description: stopToEdit.description || '',
+      latitude: stopToEdit.latitude,
+      longitude: stopToEdit.longitude,
+      audioFile: stopToEdit.audioFile,
+      audioFileName: stopToEdit.audioFileName || '',
+    });
+    setSelectedLocation({
+      latitude: stopToEdit.latitude,
+      longitude: stopToEdit.longitude,
+    });
+    // Remove the stop from the list so it can be re-added after editing
+    deleteStop(index);
+  };
+
   const handleGetUserLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -565,6 +583,7 @@ export default function CreateTourNew() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => editStop(index)}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>

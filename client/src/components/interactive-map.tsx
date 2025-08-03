@@ -23,13 +23,11 @@ const userLocationIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const tourIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+const tourIcon = L.divIcon({
+  html: `<div style="background-color: #00BCD4; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>`,
+  className: '',
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
 });
 
 const tourStopIcon = new L.Icon({
@@ -77,26 +75,16 @@ interface InteractiveMapProps {
 // Component to update map view when any location changes
 function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocation; tourStops?: TourStop[] }) {
   const map = useMap();
-  const prevActiveLocationRef = useRef<UserLocation | undefined>();
-  const prevTourStopsRef = useRef<TourStop[]>([]);
   
   useEffect(() => {
-    const activeLocationChanged = JSON.stringify(activeLocation) !== JSON.stringify(prevActiveLocationRef.current);
-    const tourStopsChanged = JSON.stringify(tourStops) !== JSON.stringify(prevTourStopsRef.current);
-    
-    if (activeLocationChanged || tourStopsChanged) {
-      if (tourStops && tourStops.length > 0) {
-        // If we have tour stops, fit the map to show all stops
-        const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
-        map.fitBounds(bounds, { padding: [20, 20] });
-      } else if (activeLocation) {
-        map.setView([activeLocation.latitude, activeLocation.longitude], 13);
-      }
-      
-      prevActiveLocationRef.current = activeLocation;
-      prevTourStopsRef.current = tourStops || [];
+    if (tourStops && tourStops.length > 0) {
+      // If we have tour stops, fit the map to show all stops
+      const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
+      map.fitBounds(bounds, { padding: [20, 20] });
+    } else if (activeLocation) {
+      map.setView([activeLocation.latitude, activeLocation.longitude], 13);
     }
-  }, [activeLocation, tourStops, map]);
+  }, [activeLocation?.latitude, activeLocation?.longitude, tourStops?.length, map]);
   
   return null;
 }
