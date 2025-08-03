@@ -16,6 +16,8 @@ export interface IStorage {
   getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[] }) | undefined>;
   createTour(insertTour: InsertTour & { creatorId: number }): Promise<Tour>;
   createTourWithStops(tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour>;
+  updateTour(id: number, tourData: InsertTour & { creatorId: number }): Promise<Tour>;
+  updateTourWithStops(id: number, tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour>;
   getNearbyTours(lat: number, lon: number, radiusKm: number): Promise<Tour[]>;
   getToursByCreator(creatorId: number): Promise<Tour[]>;
   
@@ -161,6 +163,43 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return completedTour;
+  }
+
+  async updateTour(id: number, tourData: InsertTour & { creatorId: number }): Promise<Tour> {
+    const [updatedTour] = await db
+      .update(tours)
+      .set({
+        ...tourData,
+        updatedAt: new Date(),
+      })
+      .where(eq(tours.id, id))
+      .returning();
+    return updatedTour;
+  }
+
+  async updateTourWithStops(id: number, tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour> {
+    // Update the tour
+    const [updatedTour] = await db
+      .update(tours)
+      .set({
+        ...tourData,
+        updatedAt: new Date(),
+      })
+      .where(eq(tours.id, id))
+      .returning();
+
+    // Delete existing stops and insert new ones
+    await db.delete(tourStops).where(eq(tourStops.tourId, id));
+    
+    if (stops.length > 0) {
+      const stopsWithTourId = stops.map(stop => ({
+        ...stop,
+        tourId: id,
+      }));
+      await db.insert(tourStops).values(stopsWithTourId);
+    }
+
+    return updatedTour;
   }
 }
 

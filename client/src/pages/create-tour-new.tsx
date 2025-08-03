@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'wouter';
+import { useState, useEffect } from 'react';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useLocation, useSearch } from 'wouter';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ interface TourDetails {
   category: string;
   coverImage: File | null;
   coverImagePreview: string;
+  existingCoverImageUrl?: string;
 }
 
 interface TourStop {
@@ -33,6 +34,7 @@ interface TourStop {
   audioFile: File | null;
   audioFileName: string;
   order: number;
+  existingAudioUrl?: string;
 }
 
 // Step Progress Component
@@ -107,6 +109,48 @@ export default function CreateTourNew() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Check if we're in edit mode
+  const search = useSearch();
+  const urlParams = new URLSearchParams(search);
+  const editTourId = urlParams.get('edit');
+  const isEditMode = !!editTourId;
+
+  // Fetch existing tour data when in edit mode
+  const { data: existingTour, isLoading: isLoadingTour } = useQuery({
+    queryKey: [`/api/tours/${editTourId}/details`],
+    enabled: isEditMode,
+  });
+
+  // Populate form with existing tour data
+  useEffect(() => {
+    if (existingTour && isEditMode) {
+      const tour = existingTour as any; // Type assertion for now
+      setTourDetails({
+        title: tour.title || '',
+        description: tour.description || '',
+        category: tour.category || '',
+        coverImage: null,
+        coverImagePreview: tour.coverImageUrl || '',
+        existingCoverImageUrl: tour.coverImageUrl || '',
+      });
+
+      if (tour.stops && tour.stops.length > 0) {
+        const formattedStops: TourStop[] = tour.stops.map((stop: any, index: number) => ({
+          id: stop.id?.toString() || `existing-${index}`,
+          title: stop.title || '',
+          description: stop.description || '',
+          latitude: parseFloat(stop.latitude) || 0,
+          longitude: parseFloat(stop.longitude) || 0,
+          audioFile: null,
+          audioFileName: stop.audioFileUrl ? 'existing-audio.mp3' : '',
+          order: stop.order || index + 1,
+          existingAudioUrl: stop.audioFileUrl || '',
+        }));
+        setTourStops(formattedStops);
+      }
+    }
+  }, [existingTour, isEditMode]);
+
   // Upload mutations
   const uploadCoverImageMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -134,24 +178,28 @@ export default function CreateTourNew() {
 
   const createTourMutation = useMutation({
     mutationFn: async (tourData: any) => {
-      const response = await apiRequest('/api/tours', {
-        method: 'POST',
+      const endpoint = isEditMode ? `/api/tours/${editTourId}` : '/api/tours';
+      const method = isEditMode ? 'PUT' : 'POST';
+      
+      const response = await apiRequest(endpoint, {
+        method,
         body: tourData,
       });
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/details`] });
       toast({
-        title: "Tour created successfully!",
-        description: "Your tour is now live and ready for discovery.",
+        title: isEditMode ? "Tour updated successfully!" : "Tour created successfully!",
+        description: isEditMode ? "Your tour changes have been saved." : "Your tour is now live and ready for discovery.",
       });
       setLocation('/profile');
     },
     onError: (error: any) => {
       toast({
-        title: "Error creating tour",
-        description: error.message || "Failed to create tour. Please try again.",
+        title: isEditMode ? "Error updating tour" : "Error creating tour",
+        description: error.message || `Failed to ${isEditMode ? 'update' : 'create'} tour. Please try again.`,
         variant: "destructive",
       });
     },
@@ -357,7 +405,9 @@ export default function CreateTourNew() {
   const renderStep1 = () => (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Let's create your audio tour</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {isEditMode ? "Edit your audio tour" : "Let's create your audio tour"}
+        </h1>
       </div>
 
       <div>
@@ -628,28 +678,31 @@ export default function CreateTourNew() {
       if (tourDetails.coverImage) {
         const coverResult = await uploadCoverImageMutation.mutateAsync(tourDetails.coverImage);
         coverImageUrl = coverResult.imageUrl;
+      } else if (tourDetails.existingCoverImageUrl) {
+        // Keep existing cover image
+        coverImageUrl = tourDetails.existingCoverImageUrl;
       }
 
       // Upload audio files for all stops
       const stopsWithAudio = await Promise.all(
         tourStops.map(async (stop) => {
+          let audioUrl = '';
+          
           if (stop.audioFile) {
+            // New audio file uploaded
             const audioResult = await uploadAudioMutation.mutateAsync(stop.audioFile);
-            return {
-              title: stop.title,
-              description: stop.description,
-              latitude: stop.latitude.toString(),
-              longitude: stop.longitude.toString(),
-              audioFileUrl: audioResult.audioUrl,
-              order: stop.order,
-            };
+            audioUrl = audioResult.audioUrl;
+          } else if (stop.existingAudioUrl) {
+            // Keep existing audio file
+            audioUrl = stop.existingAudioUrl;
           }
+          
           return {
             title: stop.title,
             description: stop.description,
             latitude: stop.latitude.toString(),
             longitude: stop.longitude.toString(),
-            audioFileUrl: '',
+            audioFileUrl: audioUrl,
             order: stop.order,
           };
         })
@@ -687,7 +740,9 @@ export default function CreateTourNew() {
   const renderStep3 = () => (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Review Your Tour</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          {isEditMode ? "Review Your Changes" : "Review Your Tour"}
+        </h1>
       </div>
 
       {/* Tour Details Summary */}
@@ -739,6 +794,14 @@ export default function CreateTourNew() {
                       </audio>
                       <p className="text-xs text-gray-500">{stop.audioFileName}</p>
                     </div>
+                  ) : stop.existingAudioUrl ? (
+                    <div className="flex items-center gap-2">
+                      <audio controls className="h-8">
+                        <source src={stop.existingAudioUrl} />
+                        Your browser does not support the audio element.
+                      </audio>
+                      <p className="text-xs text-gray-500">Existing audio file</p>
+                    </div>
                   ) : (
                     <p className="text-xs text-red-500">No audio file</p>
                   )}
@@ -763,11 +826,32 @@ export default function CreateTourNew() {
           disabled={createTourMutation.isPending}
           className="flex-1 bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
         >
-          {createTourMutation.isPending ? 'Creating Tour...' : 'Create Tour'}
+          {createTourMutation.isPending 
+            ? (isEditMode ? 'Updating Tour...' : 'Creating Tour...') 
+            : (isEditMode ? 'Update Tour' : 'Create Tour')
+          }
         </Button>
       </div>
     </div>
   );
+
+  // Show loading state when in edit mode and fetching data
+  if (isEditMode && isLoadingTour) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="pt-24 py-12">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Loading tour data...</h2>
+              <p className="text-gray-600">Please wait while we fetch your tour information.</p>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

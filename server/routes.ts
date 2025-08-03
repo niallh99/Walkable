@@ -429,6 +429,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update tour (protected route)
+  app.put("/api/tours/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid tour ID"
+        });
+      }
+
+      const { stops, ...tourData } = req.body;
+      const validatedTourData = insertTourSchema.parse(tourData);
+      
+      // Check if tour exists and user owns it
+      const existingTour = await storage.getTour(tourId);
+      if (!existingTour) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "Tour not found"
+        });
+      }
+
+      if (existingTour.creatorId !== req.user.id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          details: "You can only edit your own tours"
+        });
+      }
+
+      let updatedTour;
+      if (stops && stops.length > 0) {
+        // Validate and prepare stops data
+        const validatedStops = stops.map((stop: any) => ({
+          title: stop.title || '',
+          description: stop.description || '',
+          latitude: stop.latitude || '',
+          longitude: stop.longitude || '',
+          audioFileUrl: stop.audioFileUrl || '',
+          order: stop.order || 1,
+        }));
+
+        updatedTour = await storage.updateTourWithStops(tourId, {
+          ...validatedTourData,
+          creatorId: req.user.id,
+        }, validatedStops);
+      } else {
+        updatedTour = await storage.updateTour(tourId, {
+          ...validatedTourData,
+          creatorId: req.user.id,
+        });
+      }
+
+      res.json({
+        message: "Tour updated successfully",
+        tour: updatedTour,
+      });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: error.errors.map((e: any) => e.message).join(', ')
+        });
+      }
+      
+      console.error('Update tour error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to update tour"
+      });
+    }
+  });
+
   // Cover image upload endpoint (protected route)
   app.post("/api/upload/cover-image", authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
     try {
