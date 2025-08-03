@@ -502,6 +502,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete tour (protected route)
+  app.delete("/api/tours/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid tour ID"
+        });
+      }
+
+      // Check if tour exists and user owns it
+      const existingTour = await storage.getTour(tourId);
+      if (!existingTour) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "Tour not found"
+        });
+      }
+
+      if (existingTour.creatorId !== req.user.id) {
+        return res.status(403).json({
+          error: "Forbidden",
+          details: "You can only delete your own tours"
+        });
+      }
+
+      await storage.deleteTour(tourId);
+
+      res.json({
+        message: "Tour deleted successfully"
+      });
+    } catch (error: any) {
+      console.error('Delete tour error:', error);
+      res.status(500).json({ 
+        error: "Internal server error",
+        details: "Failed to delete tour"
+      });
+    }
+  });
+
   // Cover image upload endpoint (protected route)
   app.post("/api/upload/cover-image", authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
     try {

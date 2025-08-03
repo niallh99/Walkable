@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { useToast } from '@/hooks/use-toast';
@@ -205,6 +205,37 @@ export default function CreateTourNew() {
     },
   });
 
+  // Delete tour mutation
+  const deleteTourMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(`/api/tours/${editTourId}`, {
+        method: 'DELETE',
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
+      toast({
+        title: "Tour deleted successfully!",
+        description: "Your tour has been permanently deleted.",
+      });
+      setLocation('/profile');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error deleting tour",
+        description: error.message || "Failed to delete tour. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteTour = () => {
+    if (window.confirm('Are you sure you want to delete this tour? This action cannot be undone.')) {
+      deleteTourMutation.mutate();
+    }
+  };
+
   // Step 1: Tour Details
   const handleCoverImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -222,6 +253,13 @@ export default function CreateTourNew() {
   };
 
   const validateStep1 = () => {
+    // In edit mode, allow continuing even without changes since form is pre-populated
+    if (isEditMode) {
+      return tourDetails.title.trim() && 
+             tourDetails.description.trim() && 
+             tourDetails.category &&
+             (tourDetails.coverImage || tourDetails.existingCoverImageUrl);
+    }
     return tourDetails.title.trim() && 
            tourDetails.description.trim() && 
            tourDetails.category && 
@@ -408,6 +446,19 @@ export default function CreateTourNew() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           {isEditMode ? "Edit your audio tour" : "Let's create your audio tour"}
         </h1>
+        {isEditMode && (
+          <div className="mt-4">
+            <Button
+              variant="destructive"
+              onClick={handleDeleteTour}
+              disabled={deleteTourMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              {deleteTourMutation.isPending ? 'Deleting...' : 'Delete Tour'}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div>

@@ -18,6 +18,7 @@ export interface IStorage {
   createTourWithStops(tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour>;
   updateTour(id: number, tourData: InsertTour & { creatorId: number }): Promise<Tour>;
   updateTourWithStops(id: number, tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour>;
+  deleteTour(id: number): Promise<void>;
   getNearbyTours(lat: number, lon: number, radiusKm: number): Promise<Tour[]>;
   getToursByCreator(creatorId: number): Promise<Tour[]>;
   
@@ -200,6 +201,14 @@ export class DatabaseStorage implements IStorage {
     }
 
     return updatedTour;
+  }
+
+  async deleteTour(id: number): Promise<void> {
+    // Delete tour stops first (foreign key constraint)
+    await db.delete(tourStops).where(eq(tourStops.tourId, id));
+    
+    // Delete the tour
+    await db.delete(tours).where(eq(tours.id, id));
   }
 }
 
