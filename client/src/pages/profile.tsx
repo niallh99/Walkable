@@ -61,7 +61,11 @@ export default function Profile() {
   const updateProfileMutation = useMutation({
     mutationFn: async (updateData: UpdateUserProfile) => {
       if (!user?.id) throw new Error('User not authenticated');
-      const response = await apiRequest(`/api/users/${user.id}/profile`, 'PUT', updateData);
+      const response = await apiRequest(`/api/users/${user.id}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
       return response.json();
     },
     onSuccess: () => {
@@ -269,6 +273,17 @@ export default function Profile() {
                               <span>{new Date(tour.createdAt).toLocaleDateString()}</span>
                             </div>
                           </div>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
+                            onClick={() => window.location.href = `/create-tour?edit=${tour.id}`}
+                          >
+                            <Edit2 className="h-4 w-4 mr-1" />
+                            Edit Tour
+                          </Button>
                         </div>
                       </div>
                     ))}
