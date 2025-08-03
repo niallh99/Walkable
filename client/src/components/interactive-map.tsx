@@ -125,6 +125,7 @@ const createNumberedIcon = (number: number) => {
 
 export function InteractiveMap({ tours, tourStops = [], userLocation, activeLocation, selectedLocation, onLocationRequest, onTourSelect, onMapClick, showRoute = false }: InteractiveMapProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [walkingRoute, setWalkingRoute] = useState<[number, number][]>([]);
   const mapRef = useRef<L.Map>(null);
 
   // Default to San Francisco if no location available
@@ -149,6 +150,61 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
       setIsLoading(false);
     }
   };
+
+  // Fetch walking route between stops using OpenRouteService
+  useEffect(() => {
+    const fetchWalkingRoute = async () => {
+      if (!showRoute || tourStops.length < 2) {
+        setWalkingRoute([]);
+        return;
+      }
+
+      try {
+        const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
+        const coordinates = sortedStops.map(stop => [stop.longitude, stop.latitude]);
+        
+        // Use OpenRouteService for walking directions
+        const response = await fetch('https://api.openrouteservice.org/v2/directions/foot-walking', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
+            'Authorization': '5b3ce3597851110001cf6248a1e8b1e8b8974fa494d746b7b6582b7c', // Free tier API key
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify({
+            coordinates: coordinates,
+            format: 'geojson'
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.features && data.features[0] && data.features[0].geometry) {
+            const routeCoordinates = data.features[0].geometry.coordinates.map(
+              (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
+            );
+            setWalkingRoute(routeCoordinates);
+          } else {
+            // Fallback to straight lines if routing fails
+            const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
+            setWalkingRoute(fallbackRoute);
+          }
+        } else {
+          // Fallback to straight lines if API fails
+          const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
+          setWalkingRoute(fallbackRoute);
+        }
+      } catch (error) {
+        console.error('Error fetching walking route:', error);
+        // Fallback to straight lines
+        const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
+        const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
+        setWalkingRoute(fallbackRoute);
+      }
+    };
+
+    fetchWalkingRoute();
+  }, [tourStops, showRoute]);
 
   const getCategoryIcon = (category: string) => {
     switch (category.toLowerCase()) {
