@@ -243,7 +243,8 @@ export default function CreateTourNew() {
       audioFile: null,
       audioFileName: '',
     });
-    setSelectedLocation(null);
+    // Keep selectedLocation to maintain the cyan waypoint for next stop placement
+    // This prevents the "Your Location" blue waypoint from reappearing
   };
 
   const moveStop = (index: number, direction: 'up' | 'down') => {
@@ -705,7 +706,19 @@ export default function CreateTourNew() {
                 {stop.description && (
                   <p className="text-sm text-gray-600">{stop.description}</p>
                 )}
-                <p className="text-xs text-gray-500">Audio: {stop.audioFileName}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  {stop.audioFile ? (
+                    <div className="flex items-center gap-2">
+                      <audio controls className="h-8">
+                        <source src={URL.createObjectURL(stop.audioFile)} type={stop.audioFile.type} />
+                        Your browser does not support the audio element.
+                      </audio>
+                      <p className="text-xs text-gray-500">{stop.audioFileName}</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-red-500">No audio file</p>
+                  )}
+                </div>
               </div>
             </div>
           ))}
