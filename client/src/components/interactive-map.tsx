@@ -186,57 +186,17 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
     }
   };
 
-  // Fetch walking route between stops using OpenRouteService
+  // Fetch walking route between stops - temporarily using straight lines to fix blank screen
   useEffect(() => {
-    const fetchWalkingRoute = async () => {
-      if (!showRoute || tourStops.length < 2) {
-        setWalkingRoute([]);
-        return;
-      }
+    if (!showRoute || tourStops.length < 2) {
+      setWalkingRoute([]);
+      return;
+    }
 
-      try {
-        const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
-        const coordinates = sortedStops.map(stop => [stop.longitude, stop.latitude]);
-        
-        // Create waypoints for Google Directions API
-        const waypoints = sortedStops.slice(1, -1).map(stop => 
-          `${stop.latitude},${stop.longitude}`
-        ).join('|');
-        
-        const origin = `${sortedStops[0].latitude},${sortedStops[0].longitude}`;
-        const destination = `${sortedStops[sortedStops.length - 1].latitude},${sortedStops[sortedStops.length - 1].longitude}`;
-        
-        // Use Google Directions API for walking directions
-        const directionsUrl = `/api/directions?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${encodeURIComponent(waypoints)}&mode=walking`;
-        
-        const response = await fetch(directionsUrl);
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.routes && data.routes[0] && data.routes[0].overview_polyline) {
-            // Decode the polyline from Google Directions API
-            const decodedRoute = decodePolyline(data.routes[0].overview_polyline.points);
-            setWalkingRoute(decodedRoute);
-          } else {
-            // Fallback to straight lines if routing fails
-            const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
-            setWalkingRoute(fallbackRoute);
-          }
-        } else {
-          // Fallback to straight lines if API fails
-          const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
-          setWalkingRoute(fallbackRoute);
-        }
-      } catch (error) {
-        console.error('Error fetching walking route:', error);
-        // Fallback to straight lines
-        const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
-        const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
-        setWalkingRoute(fallbackRoute);
-      }
-    };
-
-    fetchWalkingRoute();
+    // For now, use straight lines to fix the blank screen issue
+    const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
+    const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
+    setWalkingRoute(fallbackRoute);
   }, [tourStops, showRoute]);
 
   const getCategoryIcon = (category: string) => {
