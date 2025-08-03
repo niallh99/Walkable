@@ -655,6 +655,10 @@ export default function CreateTourNew() {
         })
       );
 
+      // Calculate tour metrics from stops data
+      const totalAudioDuration = stopsWithAudio.length * 5; // Approximate 5 min per stop
+      const walkingDistance = stopsWithAudio.length > 1 ? (stopsWithAudio.length * 0.5).toFixed(1) : '0.5'; // Approximate 0.5km per stop
+
       // Create the complete tour data
       const tourData = {
         title: tourDetails.title,
@@ -663,9 +667,10 @@ export default function CreateTourNew() {
         latitude: stopsWithAudio[0]?.latitude || '0',
         longitude: stopsWithAudio[0]?.longitude || '0',
         audioFileUrl: stopsWithAudio[0]?.audioFileUrl || '',
-        duration: 60, // Default duration
-        distance: '2.5', // Default distance
+        duration: totalAudioDuration,
+        distance: walkingDistance,
         coverImageUrl,
+        stops: stopsWithAudio, // Include stops data
       };
 
       await createTourMutation.mutateAsync(tourData);

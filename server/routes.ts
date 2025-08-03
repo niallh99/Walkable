@@ -325,12 +325,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create tour (protected route)
   app.post("/api/tours", authenticateToken, async (req: any, res) => {
     try {
-      const validatedData = insertTourSchema.parse(req.body);
+      const { stops, ...tourData } = req.body;
+      const validatedTourData = insertTourSchema.parse(tourData);
       
-      const tour = await storage.createTour({
-        ...validatedData,
-        creatorId: req.user.id,
-      });
+      let tour;
+      if (stops && stops.length > 0) {
+        // Validate and prepare stops data
+        const validatedStops = stops.map((stop: any) => ({
+          title: stop.title || '',
+          description: stop.description || '',
+          latitude: stop.latitude || '',
+          longitude: stop.longitude || '',
+          audioFileUrl: stop.audioFileUrl || '',
+          order: stop.order || 1,
+        }));
+
+        tour = await storage.createTourWithStops({
+          ...validatedTourData,
+          creatorId: req.user.id,
+        }, validatedStops);
+      } else {
+        tour = await storage.createTour({
+          ...validatedTourData,
+          creatorId: req.user.id,
+        });
+      }
 
       res.status(201).json({
         message: "Tour created successfully",

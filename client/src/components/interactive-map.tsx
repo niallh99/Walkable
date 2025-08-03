@@ -75,8 +75,20 @@ interface InteractiveMapProps {
 // Component to update map view when any location changes
 function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocation; tourStops?: TourStop[] }) {
   const map = useMap();
+  const prevViewRef = useRef<{ lat?: number; lng?: number; stopsCount?: number }>({});
   
   useEffect(() => {
+    const currentView = { 
+      lat: activeLocation?.latitude, 
+      lng: activeLocation?.longitude, 
+      stopsCount: tourStops?.length 
+    };
+    
+    // Only update if something meaningful changed
+    if (JSON.stringify(currentView) === JSON.stringify(prevViewRef.current)) {
+      return;
+    }
+    
     if (tourStops && tourStops.length > 0) {
       // If we have tour stops, fit the map to show all stops
       const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
@@ -84,7 +96,9 @@ function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocati
     } else if (activeLocation) {
       map.setView([activeLocation.latitude, activeLocation.longitude], 13);
     }
-  }, [activeLocation?.latitude, activeLocation?.longitude, tourStops?.length, map]);
+    
+    prevViewRef.current = currentView;
+  }, [activeLocation, tourStops, map]);
   
   return null;
 }

@@ -120,14 +120,27 @@ export default function TourDetail() {
     );
   }
 
+  // Handle missing stops gracefully
+  const tourStops = tour.stops || [];
+  const hasStops = tourStops.length > 0;
+
   // Convert tour and stops to map format
-  const tourStopsForMap = tour.stops.map(stop => ({
+  const tourStopsForMap = tourStops.map(stop => ({
     id: stop.id.toString(),
     title: stop.title,
     latitude: parseFloat(stop.latitude),
     longitude: parseFloat(stop.longitude),
     order: stop.order,
   }));
+
+  // If no stops, use tour's main location as a single stop for map centering
+  const mapStops = hasStops ? tourStopsForMap : [{
+    id: 'main',
+    title: tour.title,
+    latitude: parseFloat(tour.latitude),
+    longitude: parseFloat(tour.longitude),
+    order: 1,
+  }];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -169,7 +182,7 @@ export default function TourDetail() {
                 </div>
                 <div className="flex items-center">
                   <Volume2 className="h-4 w-4 mr-1" />
-                  <span>{tour.stops.length} audio stops</span>
+                  <span>{tourStops.length} audio stops</span>
                 </div>
               </div>
             </div>
@@ -186,7 +199,14 @@ export default function TourDetail() {
               </h2>
               
               <div className="space-y-4">
-                {tour.stops.map((stop, index) => (
+                {!hasStops ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Volume2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium">No audio stops available</p>
+                    <p className="text-sm">This tour doesn't have detailed audio stops yet.</p>
+                  </div>
+                ) : (
+                  tourStops.map((stop, index) => (
                   <Card 
                     key={stop.id} 
                     className={`cursor-pointer transition-all hover:shadow-md ${
@@ -222,7 +242,8 @@ export default function TourDetail() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -231,9 +252,9 @@ export default function TourDetail() {
           <div className="flex-1 relative">
             <InteractiveMap
               tours={[]}
-              tourStops={tourStopsForMap}
+              tourStops={mapStops}
               onLocationRequest={() => {}}
-              showRoute={true}
+              showRoute={hasStops}
             />
           </div>
         </div>
