@@ -90,7 +90,7 @@ function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocati
       map.setView([activeLocation.latitude, activeLocation.longitude], 13);
       setHasInitialized(true);
     }
-  }, [activeLocation, tourStops, map, hasInitialized]);
+  }, [activeLocation, tourStops, map]);
   
   return null;
 }
