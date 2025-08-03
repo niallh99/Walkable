@@ -24,7 +24,7 @@ const userLocationIcon = new L.Icon({
 });
 
 const tourIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -79,14 +79,24 @@ interface InteractiveMapProps {
 // Component to update map view when any location changes
 function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocation; tourStops?: TourStop[] }) {
   const map = useMap();
+  const prevActiveLocationRef = useRef<UserLocation | undefined>();
+  const prevTourStopsRef = useRef<TourStop[]>([]);
   
   useEffect(() => {
-    if (tourStops && tourStops.length > 0) {
-      // If we have tour stops, fit the map to show all stops
-      const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
-      map.fitBounds(bounds, { padding: [20, 20] });
-    } else if (activeLocation) {
-      map.setView([activeLocation.latitude, activeLocation.longitude], 13);
+    const activeLocationChanged = JSON.stringify(activeLocation) !== JSON.stringify(prevActiveLocationRef.current);
+    const tourStopsChanged = JSON.stringify(tourStops) !== JSON.stringify(prevTourStopsRef.current);
+    
+    if (activeLocationChanged || tourStopsChanged) {
+      if (tourStops && tourStops.length > 0) {
+        // If we have tour stops, fit the map to show all stops
+        const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
+        map.fitBounds(bounds, { padding: [20, 20] });
+      } else if (activeLocation) {
+        map.setView([activeLocation.latitude, activeLocation.longitude], 13);
+      }
+      
+      prevActiveLocationRef.current = activeLocation;
+      prevTourStopsRef.current = tourStops;
     }
   }, [activeLocation, tourStops, map]);
   
@@ -363,17 +373,7 @@ export function InteractiveMap({ tours, tourStops = [], userLocation, activeLoca
           </Marker>
         )}
 
-        {/* Active Location Marker (for searches) */}
-        {activeLocation && !selectedLocation && (
-          <Marker position={[activeLocation.latitude, activeLocation.longitude]} icon={selectedLocationIcon}>
-            <Popup>
-              <div className="p-2">
-                <h4 className="font-semibold">Selected Location</h4>
-                {activeLocation.address && <p className="text-sm text-gray-600">{activeLocation.address}</p>}
-              </div>
-            </Popup>
-          </Marker>
-        )}
+        {/* Active Location Marker (for searches) - Removed to hide search location waypoints */}
 
         {/* Tour Markers */}
         {tours.map((tour) => (
