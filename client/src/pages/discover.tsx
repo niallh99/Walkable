@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { Navbar } from '@/components/navbar';
+import { Footer } from '@/components/footer';
 import { Tour } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,20 +20,21 @@ interface UserLocation {
 
 export default function Discover() {
   const [userLocation, setUserLocation] = useState<UserLocation | undefined>();
-  const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [searchLocation, setSearchLocation] = useState<UserLocation | undefined>();
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
-  // Fetch all tours initially
+  // Active location is either search location or user location
+  const activeLocation = searchLocation || userLocation;
+
+  // Fetch all tours
   const { data: allTours = [], isLoading: isLoadingTours } = useQuery<Tour[]>({
     queryKey: ['/api/tours'],
   });
 
-  // Use the active location (search or user location)
-  const activeLocation = searchLocation || userLocation;
-
-  // Fetch nearby tours when any location is available
+  // Fetch nearby tours when we have an active location
   const { data: nearbyTours = [], isLoading: isLoadingNearby } = useQuery<Tour[]>({
     queryKey: ['/api/tours/nearby', activeLocation?.latitude, activeLocation?.longitude],
     queryFn: async () => {
@@ -45,22 +48,13 @@ export default function Discover() {
     enabled: !!activeLocation,
   });
 
-  // Use nearby tours if location is available, otherwise show all tours
+  // Display tours: nearby tours if we have location, otherwise all tours
   const displayTours = activeLocation ? nearbyTours : allTours;
 
-  const handleLocationRequest = async () => {
-    setIsGettingLocation(true);
+  const handleLocationRequest = () => {
+    if (isGettingLocation) return;
     
-    if (!navigator.geolocation) {
-      toast({
-        title: "Location not supported",
-        description: "Your browser doesn't support geolocation.",
-        variant: "destructive",
-      });
-      setIsGettingLocation(false);
-      return;
-    }
-
+    setIsGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const location = {
@@ -68,18 +62,21 @@ export default function Discover() {
           longitude: position.coords.longitude,
         };
         setUserLocation(location);
+        setSearchLocation(undefined); // Clear search when using current location
         setIsGettingLocation(false);
+        
         toast({
           title: "Location found",
-          description: "Showing tours near your location.",
+          description: "Showing tours near your current location",
         });
       },
       (error) => {
-        console.error('Error getting location:', error);
         setIsGettingLocation(false);
+        console.error('Error getting location:', error);
+        
         toast({
-          title: "Location access denied",
-          description: "Please enable location access to find nearby tours.",
+          title: "Location unavailable",
+          description: "Please search for a location or try again",
           variant: "destructive",
         });
       },
@@ -92,7 +89,87 @@ export default function Discover() {
   };
 
   const handleTourSelect = (tour: Tour) => {
-    setSelectedTour(tour);
+    setLocation(`/tour/${tour.id}`);
+  };
+
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      history: 'bg-orange-100 text-orange-800',
+      culture: 'bg-purple-100 text-purple-800',
+      food: 'bg-red-100 text-red-800',
+      nature: 'bg-green-100 text-green-800',
+      architecture: 'bg-blue-100 text-blue-800',
+      art: 'bg-pink-100 text-pink-800',
+    };
+    return colors[category.toLowerCase()] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getLocationImage = (title: string) => {
+    const lowerTitle = title.toLowerCase();
+    
+    // Generate stock photo URLs based on location/content
+    let imageUrl = '';
+    let altText = '';
+    
+    if (lowerTitle.includes('amsterdam') || lowerTitle.includes('canal')) {
+      imageUrl = 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=400&h=300&fit=crop&crop=center';
+      altText = 'Amsterdam Canals';
+    } else if (lowerTitle.includes('san francisco') || lowerTitle.includes('downtown')) {
+      imageUrl = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop&crop=center';
+      altText = 'San Francisco Downtown';
+    } else if (lowerTitle.includes('golden gate') || lowerTitle.includes('bridge')) {
+      imageUrl = 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=300&fit=crop&crop=center';
+      altText = 'Golden Gate Bridge';
+    } else if (lowerTitle.includes('chinatown')) {
+      imageUrl = 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&crop=center';
+      altText = 'Chinatown';
+    } else if (lowerTitle.includes('fisherman')) {
+      imageUrl = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop&crop=center';
+      altText = 'Fishermans Wharf';
+    } else if (lowerTitle.includes('beach') || lowerTitle.includes('boardwalk')) {
+      imageUrl = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop&crop=center';
+      altText = 'Beach';
+    } else if (lowerTitle.includes('art') || lowerTitle.includes('gallery')) {
+      imageUrl = 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop&crop=center';
+      altText = 'Art Gallery';
+    } else if (lowerTitle.includes('park') || lowerTitle.includes('nature')) {
+      imageUrl = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop&crop=center';
+      altText = 'Park';
+    } else if (lowerTitle.includes('food') || lowerTitle.includes('culinary')) {
+      imageUrl = 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=300&fit=crop&crop=center';
+      altText = 'Food Tour';
+    } else if (lowerTitle.includes('historic') || lowerTitle.includes('history')) {
+      imageUrl = 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=300&fit=crop&crop=center';
+      altText = 'Historic District';
+    } else {
+      // Default city image
+      imageUrl = 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=400&h=300&fit=crop&crop=center';
+      altText = 'City Tour';
+    }
+
+    return (
+      <img 
+        src={imageUrl} 
+        alt={altText}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          // Fallback if image fails to load
+          const target = e.target as HTMLImageElement;
+          target.style.display = 'none';
+          const parent = target.parentElement;
+          if (parent) {
+            parent.innerHTML = `
+              <div class="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                <div class="text-center text-white">
+                  <div class="text-4xl mb-2">🏙️</div>
+                  <div class="text-sm font-medium">${altText}</div>
+                </div>
+              </div>
+            `;
+          }
+        }}
+      />
+    );
   };
 
   const handleLocationSearch = (location: { latitude: number; longitude: number; address: string }) => {
@@ -132,7 +209,7 @@ export default function Discover() {
         Math.sin(dLon/2) * Math.sin(dLon/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       const distance = R * c;
-
+      
       if (distance < shortestDistance) {
         shortestDistance = distance;
         nearestTour = tour;
@@ -152,17 +229,6 @@ export default function Discover() {
       title: "Showing nearest tours",
       description: `Found tours near ${nearestTour.title}`,
     });
-  };
-
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      history: 'bg-orange-100 text-orange-800',
-      culture: 'bg-purple-100 text-purple-800',
-      food: 'bg-red-100 text-red-800',
-      nature: 'bg-green-100 text-green-800',
-      architecture: 'bg-blue-100 text-blue-800',
-    };
-    return colors[category.toLowerCase()] || 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -205,26 +271,21 @@ export default function Discover() {
                   </Button>
                 )}
               </div>
-
-              {/* Location Search */}
+              
               <div className="flex items-center space-x-4">
                 <div className="flex-1 max-w-md">
                   <LocationSearch
                     onLocationSelect={handleLocationSearch}
-                    onClear={handleClearSearch}
-                    placeholder="Search for tours in a city or location..."
-                    className="w-full"
+                    onClear={searchLocation ? handleClearSearch : undefined}
+                    placeholder="Search for a location..."
                   />
                 </div>
                 
                 {activeLocation && (
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setSearchLocation(undefined);
-                      setUserLocation(undefined);
-                    }}
-                    className="text-gray-600 hover:text-gray-800"
+                    onClick={handleClearSearch}
+                    className="border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
                   >
                     Show All Tours
                   </Button>
@@ -234,9 +295,9 @@ export default function Discover() {
           </div>
         </div>
 
-        {/* Main Content */}
+        {/* Map and Tours */}
         <div className="flex-1 flex">
-          {/* Map Section */}
+          {/* Map */}
           <div className="flex-1 relative">
             {isLoadingTours || isLoadingNearby ? (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
@@ -256,11 +317,10 @@ export default function Discover() {
                       : "No tours are currently available. Check back later for new content."
                     }
                   </p>
-                  {activeLocation && (
+                  {activeLocation && allTours.length > 0 && (
                     <Button
                       onClick={handleShowNearbyTours}
-                      variant="outline"
-                      className="border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
+                      className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
                     >
                       Show Nearby Tours
                     </Button>
@@ -300,57 +360,121 @@ export default function Discover() {
                     </Button>
                   </div>
                 </CardHeader>
-                
-                <CardContent className="space-y-4">
-                  <CardDescription className="text-base leading-relaxed">
+                <CardContent>
+                  <CardDescription className="text-sm text-gray-600 mb-4">
                     {selectedTour.description}
                   </CardDescription>
-
-                  <div className="flex items-center space-x-4 text-sm text-gray-600">
-                    {selectedTour.duration && (
-                      <div className="flex items-center space-x-1">
-                        <Clock className="h-4 w-4" />
-                        <span>{selectedTour.duration} min</span>
-                      </div>
-                    )}
-                    {selectedTour.distance && (
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="h-4 w-4" />
-                        <span>{selectedTour.distance}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {selectedTour.audioFileUrl && (
-                    <div className="border rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Volume2 className="h-4 w-4 text-walkable-cyan" />
-                        <span className="font-medium text-sm">Audio Preview</span>
-                      </div>
-                      <audio 
-                        controls 
-                        className="w-full"
-                        src={selectedTour.audioFileUrl}
-                      >
-                        Your browser does not support the audio element.
-                      </audio>
+                  
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Clock className="h-4 w-4 mr-2 text-walkable-cyan" />
+                      <span>{selectedTour.duration || 60} minutes</span>
                     </div>
-                  )}
-
-                  <div className="pt-4 space-y-3">
-                    <Button className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white">
-                      Start Tour
-                    </Button>
-                    <Button variant="outline" className="w-full">
-                      Save for Later
-                    </Button>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <MapPin className="h-4 w-4 mr-2 text-walkable-cyan" />
+                      <span>{selectedTour.distance || 2.5} km walking distance</span>
+                    </div>
+                    {selectedTour.audioFileUrl && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Volume2 className="h-4 w-4 mr-2 text-walkable-cyan" />
+                        <span>Audio guide included</span>
+                      </div>
+                    )}
                   </div>
+
+                  <Button 
+                    className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+                    onClick={() => handleTourSelect(selectedTour)}
+                  >
+                    View Tour Details
+                  </Button>
                 </CardContent>
               </Card>
             </div>
           )}
         </div>
       </div>
+
+      {/* Tours Grid Section */}
+      <div className="bg-gray-50 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {displayTours.length} tours found
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {displayTours.map((tour) => (
+              <Card key={tour.id} className="group cursor-pointer hover:shadow-lg transition-shadow">
+                <div className="relative">
+                  <div className="aspect-[4/3] bg-gradient-to-br from-gray-300 to-gray-500 rounded-t-lg flex items-center justify-center overflow-hidden">
+                    {tour.coverImageUrl ? (
+                      <img 
+                        src={tour.coverImageUrl} 
+                        alt={tour.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            parent.innerHTML = `
+                              <div class="w-full h-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center">
+                                <div class="text-center text-white">
+                                  <div class="text-4xl mb-2">🏙️</div>
+                                  <div class="text-sm font-medium">${tour.title}</div>
+                                </div>
+                              </div>
+                            `;
+                          }
+                        }}
+                      />
+                    ) : (
+                      getLocationImage(tour.title)
+                    )}
+                  </div>
+                  <div className="absolute top-3 left-3">
+                    <Badge className={getCategoryColor(tour.category)}>
+                      {tour.category}
+                    </Badge>
+                  </div>
+                  <div className="absolute top-3 right-3 bg-black/70 text-white px-2 py-1 rounded-md text-sm flex items-center">
+                    <span className="text-yellow-400 mr-1">★</span>
+                    4.5
+                  </div>
+                </div>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2 line-clamp-1">
+                    {tour.title}
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                    {tour.description}
+                  </p>
+                  <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 mr-1" />
+                      <span>{tour.duration || 60} min</span>
+                    </div>
+                    <div className="flex items-center">
+                      <MapPin className="h-4 w-4 mr-1" />
+                      <span>{tour.distance || 2.5} km</span>
+                    </div>
+                  </div>
+                  <Button 
+                    className="w-full bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+                    onClick={() => handleTourSelect(tour)}
+                  >
+                    View Tour Details
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      <Footer />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/auth-context";
 import { registerUser } from "@/lib/auth";
 import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
 
 const registerSchema = z
   .object({
@@ -164,6 +165,8 @@ export default function Register() {
           </Card>
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 }

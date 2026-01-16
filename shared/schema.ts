@@ -21,9 +21,31 @@ export const tours = pgTable("tours", {
   audioFileUrl: text("audio_file_url"),
   duration: integer("duration"), // in minutes
   distance: text("distance"), // e.g., "2.3 miles"
+  coverImageUrl: text("cover_image_url"),
   creatorId: integer("creator_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const tourStops = pgTable("tour_stops", {
+  id: serial("id").primaryKey(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  latitude: text("latitude").notNull(),
+  longitude: text("longitude").notNull(),
+  audioFileUrl: text("audio_file_url"),
+  videoFileUrl: text("video_file_url"),
+  mediaType: text("media_type").default('audio'), // 'audio' | 'video'
+  order: integer("order").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const completedTours = pgTable("completed_tours", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tourId: integer("tour_id").references(() => tours.id).notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -44,8 +66,23 @@ export const insertTourSchema = createInsertSchema(tours).omit({
   creatorId: true,
 });
 
+export const updateUserProfileSchema = createInsertSchema(users).pick({
+  username: true,
+  email: true,
+});
+
+export const insertTourStopSchema = createInsertSchema(tourStops).omit({
+  id: true,
+  createdAt: true,
+  tourId: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertTour = z.infer<typeof insertTourSchema>;
 export type Tour = typeof tours.$inferSelect;
+export type TourStop = typeof tourStops.$inferSelect;
+export type InsertTourStop = z.infer<typeof insertTourStopSchema>;
+export type CompletedTour = typeof completedTours.$inferSelect;
+export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;

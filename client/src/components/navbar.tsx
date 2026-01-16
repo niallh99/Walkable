@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "./auth-context";
 import { Button } from "@/components/ui/button";
@@ -7,15 +8,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Menu } from "lucide-react";
-import walkableLogo from "@assets/Walkable logo_1750231371495.png";
+import { User, Menu, X } from "lucide-react";
+import walkableLogo from "@assets/Walkable logo 2_1750512018721.png";
 
 export function Navbar() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
+    setIsMobileMenuOpen(false);
+  };
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
   return (
@@ -113,11 +120,106 @@ export function Navbar() {
               variant="ghost"
               size="icon"
               className="text-white hover:text-gray-200 hover:bg-white/10"
+              onClick={toggleMobileMenu}
             >
-              <Menu className="h-6 w-6" />
+              {isMobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
             </Button>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-walkable-cyan border-t border-white/20">
+            <div className="px-4 pt-2 pb-3 space-y-1">
+              {/* Navigation Links */}
+              <Link href="/">
+                <span 
+                  className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
+                    location === "/" ? "bg-white/10 rounded-md" : ""
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Home
+                </span>
+              </Link>
+              <Link href="/discover">
+                <span 
+                  className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
+                    location === "/discover" ? "bg-white/10 rounded-md" : ""
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Discover
+                </span>
+              </Link>
+              <Link href="/create-tour">
+                <span 
+                  className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
+                    location === "/create-tour" ? "bg-white/10 rounded-md" : ""
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Create
+                </span>
+              </Link>
+              {user && (
+                <Link href="/profile">
+                  <span 
+                    className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
+                      location === "/profile" ? "bg-white/10 rounded-md" : ""
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Profile
+                  </span>
+                </Link>
+              )}
+            </div>
+            
+            {/* Mobile Auth Section */}
+            <div className="px-4 py-3 border-t border-white/20">
+              {user ? (
+                <div className="space-y-2">
+                  <div className="flex items-center text-white px-3 py-2">
+                    <User className="h-4 w-4 mr-2" />
+                    <span className="text-sm font-medium">{user.username}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-white hover:text-gray-200 hover:bg-white/10"
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Link href="/login">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-white hover:text-gray-200 hover:bg-white/10"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Login
+                    </Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button 
+                      className="w-full bg-white text-walkable-cyan hover:bg-gray-100"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Sign Up
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );

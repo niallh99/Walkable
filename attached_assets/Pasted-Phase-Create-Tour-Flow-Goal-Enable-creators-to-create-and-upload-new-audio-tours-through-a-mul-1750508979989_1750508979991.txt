@@ -1,0 +1,69 @@
+Phase  ‒ Create Tour Flow
+Goal:
+Enable creators to create and upload new audio tours through a multi-step
+process, including tour details, interactive map-based stop placement, audio
+recording/upload for each stop, and a final review step.
+Tasks:
+Task .: Step  ‒ Tour Details Form Development
+Subtask ..: Implement UI for Tour Title, Short Description, Cover Image
+upload, and Category dropdown.
+Subtask ..: Implement client-side validation for all fields (required, max
+length, image file type/size).
+Subtask ..: Implement cover image preview functionality.
+Subtask ..: Implement "Continue" button to navigate to Step .
+Task .: Step  ‒ Add Stops UI and Logic Development
+Subtask ..: Integrate interactive map (Leaflet) for stop placement.
+Subtask ..: Implement map click functionality to drop new, numbered
+pins for tour stops.
+Subtask ..: Implement search bar for locations with geocoding API
+integration.
+Subtask ..: Implement UI for Stop Title, Audio Guide (Record/Upload),
+and optional Description for each stop.
+Subtask ..: Implement client-side validation for stop details (required
+fields, audio file type/size).
+Subtask ..: Implement audio upload functionality and client-side audio
+recording (if feasible for MVP).
+Subtask ..: Implement dynamic list of added tour stops with reordering
+(drag-and-drop or arrows), editing, and deletion capabilities.
+Subtask ..: Implement "Add This Stop" button to add stop details to the
+list.
+Subtask ..: Implement "Continue to Review" button to navigate to Step
+.
+Task .: Step  ‒ Review and Final Submission
+Subtask ..: Implement UI to display all previously entered tour details
+(title, description, category, cover image preview).
+Subtask ..: Implement UI to display a detailed list of all added stops
+(title, location, audio reference, description).
+Subtask ..: Implement "Back" button to return to Step  for edits.
+Subtask ..: Implement "Create Tour" submission button.
+Task .: Backend API for Media Uploads and Tour Data Submission
+Subtask ..: Develop backend API endpoint for cover image uploads
+( POST /api/upload/cover-image ).
+Subtask ..: Develop backend API endpoint for audio file uploads ( POST
+/api/upload/audio-stop ).
+Subtask ..: Develop backend API endpoint to receive the complete tour
+data object ( POST /api/tours/create ).
+Subtask ..: Implement server-side validation for all uploaded files and
+submitted tour data.
+Subtask ..: Integrate with cloud storage for media files (e.g., AWS S,
+Google Cloud Storage).
+Task .: Integration Testing (Phase )
+Subtask ..: Test end-to-end tour creation flow (all  steps).
+Subtask ..: Test all client-side and server-side validation rules.
+Subtask ..: Test map interaction, pin placement, and stop
+reordering/editing.
+Subtask ..: Test audio upload and recording functionalities.
+Subtask ..: Verify successful data persistence on the backend for tours
+and associated media.
+Dependencies:
+Task . depends on Task . (Step  follows Step ).
+Task . depends on Task . and Task . (Review step requires data from
+previous steps).
+Task . (Backend Media Uploads and Tour Data Submission) is a
+prerequisite for media handling and final submission in Task ., ., and
+..
+Task . depends on all previous tasks in Phase .
+Checkpoint:
+Upon completion of Phase , creators should be able to successfully create and submit
+new multi-stop audio tours, including all details, map locations, and audio files, with
+proper validation and backend integration

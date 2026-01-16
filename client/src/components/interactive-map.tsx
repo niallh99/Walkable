@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Tour } from '@shared/schema';
 import { Button } from '@/components/ui/button';
@@ -23,8 +23,15 @@ const userLocationIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const tourIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+const tourIcon = L.divIcon({
+  html: `<div style="background-color: #00BCD4; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>`,
+  className: '',
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+});
+
+const tourStopIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -32,42 +39,145 @@ const tourIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
+const selectedLocationIcon = L.divIcon({
+  html: `<div style="background-color: #00BCD4; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>`,
+  className: '',
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+});
+
 interface UserLocation {
   latitude: number;
   longitude: number;
+  address?: string;
+}
+
+interface TourStop {
+  id: string;
+  title: string;
+  latitude: number;
+  longitude: number;
+  order: number;
 }
 
 interface InteractiveMapProps {
   tours: Tour[];
+  tourStops?: TourStop[];
   userLocation?: UserLocation;
   activeLocation?: UserLocation;
+  selectedLocation?: UserLocation;
   onLocationRequest: () => void;
   onTourSelect?: (tour: Tour) => void;
+  onMapClick?: (location: UserLocation) => void;
+  showRoute?: boolean;
 }
 
 // Component to update map view when any location changes
-function MapUpdater({ activeLocation }: { activeLocation?: UserLocation }) {
+function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocation; tourStops?: TourStop[] }) {
   const map = useMap();
+  const [hasInitialized, setHasInitialized] = useState(false);
   
   useEffect(() => {
-    if (activeLocation) {
+    // Only update once to prevent infinite loops
+    if (hasInitialized) return;
+    
+    if (tourStops && tourStops.length > 0) {
+      // If we have tour stops, fit the map to show all stops
+      const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
+      map.fitBounds(bounds, { padding: [20, 20] });
+      setHasInitialized(true);
+    } else if (activeLocation) {
       map.setView([activeLocation.latitude, activeLocation.longitude], 13);
+      setHasInitialized(true);
     }
-  }, [activeLocation, map]);
+  }, [activeLocation, tourStops, map]);
   
   return null;
 }
 
-export function InteractiveMap({ tours, userLocation, activeLocation, onLocationRequest, onTourSelect }: InteractiveMapProps) {
+// Component to handle map clicks for location selection
+function MapClickHandler({ onMapClick }: { onMapClick?: (location: UserLocation) => void }) {
+  useMapEvents({
+    click: (e) => {
+      try {
+        if (onMapClick) {
+          onMapClick({
+            latitude: e.latlng.lat,
+            longitude: e.latlng.lng,
+          });
+        }
+      } catch (error) {
+        console.error('Map click error:', error);
+      }
+    },
+  });
+  
+  return null;
+}
+
+// Decode Google's polyline encoding
+const decodePolyline = (encoded: string): [number, number][] => {
+  const poly: [number, number][] = [];
+  let index = 0;
+  const len = encoded.length;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < len) {
+    let b;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    poly.push([lat / 1e5, lng / 1e5]);
+  }
+  return poly;
+};
+
+// Create numbered stop icons
+const createNumberedIcon = (number: number) => {
+  return L.divIcon({
+    html: `<div style="background-color: #00BCD4; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${number}</div>`,
+    className: '',
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+};
+
+export function InteractiveMap({ tours, tourStops = [], userLocation, activeLocation, selectedLocation, onLocationRequest, onTourSelect, onMapClick, showRoute = false }: InteractiveMapProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [walkingRoute, setWalkingRoute] = useState<[number, number][]>([]);
   const mapRef = useRef<L.Map>(null);
 
   // Default to San Francisco if no location available
   const defaultCenter: [number, number] = [37.7749, -122.4194];
   const currentLocation = activeLocation || userLocation;
-  const center: [number, number] = currentLocation 
-    ? [currentLocation.latitude, currentLocation.longitude] 
-    : defaultCenter;
+  
+  // If we have tour stops, center on the first stop
+  let center: [number, number];
+  if (tourStops.length > 0) {
+    center = [tourStops[0].latitude, tourStops[0].longitude];
+  } else if (currentLocation) {
+    center = [currentLocation.latitude, currentLocation.longitude];
+  } else {
+    center = defaultCenter;
+  }
 
   const handleGetLocation = async () => {
     setIsLoading(true);
@@ -77,6 +187,62 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
       setIsLoading(false);
     }
   };
+
+  // Fetch walking route between stops using Google Directions API
+  useEffect(() => {
+    const fetchWalkingRoute = async () => {
+      if (!showRoute || tourStops.length < 2) {
+        setWalkingRoute([]);
+        return;
+      }
+
+      try {
+        const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
+        
+        // Create waypoints for Google Directions API
+        const waypoints = sortedStops.slice(1, -1).map(stop => 
+          `${stop.latitude},${stop.longitude}`
+        ).join('|');
+        
+        const origin = `${sortedStops[0].latitude},${sortedStops[0].longitude}`;
+        const destination = `${sortedStops[sortedStops.length - 1].latitude},${sortedStops[sortedStops.length - 1].longitude}`;
+        
+        // Build the directions API URL
+        let directionsUrl = `/api/directions?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&mode=walking`;
+        if (waypoints) {
+          directionsUrl += `&waypoints=${encodeURIComponent(waypoints)}`;
+        }
+        
+        const response = await fetch(directionsUrl);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.routes && data.routes[0] && data.routes[0].overview_polyline) {
+            // Decode the polyline from Google Directions API
+            const encoded = data.routes[0].overview_polyline.points;
+            const decodedRoute = decodePolyline(encoded);
+            setWalkingRoute(decodedRoute);
+          } else {
+            // Fallback to straight lines if routing fails
+            const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
+            setWalkingRoute(fallbackRoute);
+          }
+        } else {
+          // Fallback to straight lines if API fails
+          const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
+          setWalkingRoute(fallbackRoute);
+        }
+      } catch (error) {
+        console.error('Error fetching walking route:', error);
+        // Fallback to straight lines
+        const sortedStops = [...tourStops].sort((a, b) => a.order - b.order);
+        const fallbackRoute = sortedStops.map(stop => [stop.latitude, stop.longitude] as [number, number]);
+        setWalkingRoute(fallbackRoute);
+      }
+    };
+
+    fetchWalkingRoute();
+  }, [tourStops, showRoute]);
 
   const getCategoryIcon = (category: string) => {
     switch (category.toLowerCase()) {
@@ -127,15 +293,16 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
         ref={mapRef}
         className="rounded-lg"
       >
-        <MapUpdater activeLocation={activeLocation || userLocation} />
+        <MapUpdater activeLocation={activeLocation || userLocation} tourStops={tourStops} />
+        <MapClickHandler onMapClick={onMapClick} />
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* User Location Marker */}
-        {userLocation && (
+        {/* User Location Marker - only show if no selected location (search result) */}
+        {userLocation && !selectedLocation && (
           <Marker
             position={[userLocation.latitude, userLocation.longitude]}
             icon={userLocationIcon}
@@ -154,6 +321,68 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
           </Marker>
         )}
 
+        {/* Tour Stops (numbered markers) */}
+        {tourStops.map((stop) => (
+          <Marker 
+            key={stop.id} 
+            position={[stop.latitude, stop.longitude]} 
+            icon={createNumberedIcon(stop.order)}
+          >
+            <Popup>
+              <div className="text-center">
+                <div className="flex items-center space-x-2 mb-2">
+                  <Volume2 className="h-4 w-4 text-walkable-cyan" />
+                  <span className="font-semibold">{stop.title}</span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Stop {stop.order}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* Walking Route between stops */}
+        {showRoute && walkingRoute.length > 1 && (
+          <Polyline
+            positions={walkingRoute}
+            color="#007acc"
+            weight={4}
+            opacity={0.8}
+            smoothFactor={1}
+          />
+        )}
+
+        {/* Selected Location Marker (for new stop placement) */}
+        {selectedLocation && (
+          <Marker 
+            position={[selectedLocation.latitude, selectedLocation.longitude]} 
+            icon={selectedLocationIcon}
+            draggable={true}
+            eventHandlers={{
+              dragend: (e) => {
+                const marker = e.target;
+                const position = marker.getLatLng();
+                if (onMapClick) {
+                  onMapClick({
+                    latitude: position.lat,
+                    longitude: position.lng
+                  });
+                }
+              }
+            }}
+          >
+            <Popup>
+              <div className="p-2">
+                <h4 className="font-semibold">Tour Starting Point</h4>
+                <p className="text-sm text-gray-600">Drag to reposition or click map to place elsewhere</p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* Active Location Marker (for searches) - Removed to hide search location waypoints */}
+
         {/* Tour Markers */}
         {tours.map((tour) => (
           <Marker
@@ -161,7 +390,7 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
             position={[parseFloat(tour.latitude), parseFloat(tour.longitude)]}
             icon={tourIcon}
           >
-            <Popup className="tour-popup">
+            <Popup className="tour-popup" closeOnEscapeKey={true} closeOnClick={false} autoClose={true}>
               <div className="max-w-xs">
                 <div className="flex items-start space-x-2 mb-3">
                   <span className="text-2xl">{getCategoryIcon(tour.category)}</span>
@@ -204,6 +433,23 @@ export function InteractiveMap({ tours, userLocation, activeLocation, onLocation
             </Popup>
           </Marker>
         ))}
+
+        {/* Selected Location Marker (for tour creation) */}
+        {activeLocation && onMapClick && (
+          <Marker
+            position={[activeLocation.latitude, activeLocation.longitude]}
+            icon={selectedLocationIcon}
+          >
+            <Popup>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-gray-800 mb-2">Tour Starting Point</div>
+                <p className="text-sm text-gray-600">
+                  {activeLocation.address || `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
       </MapContainer>
     </div>
   );

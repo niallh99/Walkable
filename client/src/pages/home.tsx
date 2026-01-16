@@ -1,13 +1,16 @@
 import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
 import { HeroSection } from "@/components/hero-section";
 import { FeaturesSection } from "@/components/features-section";
-import walkableLogo from "@assets/Walkable logo_1750231371495.png";
+import { FeaturedTours } from "@/components/featured-tours";
+import walkableLogo from "@assets/Walkable logo 2_1750512018721.png";
 
 export default function Home() {
   return (
     <div className="min-h-screen">
       <Navbar />
       <HeroSection />
+      <FeaturedTours />
       <FeaturesSection />
       
       {/* Footer */}

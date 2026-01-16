@@ -100,7 +100,31 @@ Walkable is a full-stack web application that allows users to discover and creat
 
 Preferred communication style: Simple, everyday language.
 
+## Design Standards
+
+### Map Waypoint Design
+- **Standard waypoint icon**: Cyan circular design (#00BCD4) with white border and shadow
+- **Implementation**: `L.divIcon` with CSS styling using `background-color: #00BCD4`
+- **Usage**: Applied consistently across all map interactions (search results, tour stops, location placement)
+- **Features**: 30px diameter, white border, drop shadow, center-aligned icons/text
+
 ## Recent Changes
+
+- June 20, 2025: Phase 5 User & Creator Profiles completed
+  - Backend API endpoints for user profiles, creator tours, and completed tours
+  - Profile page with real data display for created and completed tours
+  - Edit profile functionality with username and email updates
+  - Tour completion tracking system with database integration
+  - Protected API endpoints with proper authentication and authorization
+  - Profile information editing with validation and conflict checking
+
+- June 18, 2025: Phase 3 Create Tour Flow completed
+  - Complete multi-step tour creation form with validation
+  - Map-based location selection with search and click functionality
+  - Audio file upload system with multer backend storage
+  - File validation (50MB limit, multiple audio formats)
+  - Integration with authentication system
+  - Progress tracking and comprehensive error handling
 
 - June 18, 2025: Phase 2 Interactive Map Discovery completed
   - Interactive map-based discover page with Leaflet.js integration
@@ -134,6 +158,7 @@ Preferred communication style: Simple, everyday language.
 
 ## Changelog
 
+- June 18, 2025: Phase 3 Create Tour Flow - COMPLETE
 - June 18, 2025: Phase 2 Interactive Map Discovery - COMPLETE
 - June 18, 2025: Phase 1 Authentication System - COMPLETE
 - June 18, 2025: Initial setup and branding

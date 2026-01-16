@@ -1,0 +1,137 @@
+Phase 3 – Create Tour Flow
+
+Goal: Enable creators to create and upload new audio tours, including tour details, map placement, and audio files.
+
+Tasks:
+
+
+
+
+Task 3.1: Tour Creation Form Development
+
+
+
+
+Subtask 3.1.1: Design and implement a multi-step form for tour creation (title, description, category).
+
+
+
+
+Subtask 3.1.2: Implement client-side validation for form fields.
+
+
+
+
+
+
+Task 3.2: Map Integration for Tour Placement
+
+
+
+
+Subtask 3.2.1: Integrate map (Leaflet) into the tour creation form.
+
+
+
+
+Subtask 3.2.2: Implement address search functionality (geocoding API integration).
+
+
+
+
+Subtask 3.2.3: Allow clickable pin placement on the map to set tour location.
+
+
+
+
+Subtask 3.2.4: Store selected coordinates with the tour data.
+
+
+
+
+
+
+Task 3.3: Audio File Upload
+
+
+
+
+Subtask 3.3.1: Implement file input for audio file uploads.
+
+
+
+
+Subtask 3.3.2: Develop backend API endpoint for secure audio file storage (e.g., POST /api/tours/upload-audio).
+
+
+
+
+Subtask 3.3.3: Implement frontend logic to upload audio files to the backend.
+
+
+
+
+Subtask 3.3.4: Handle file size limits and accepted audio formats.
+
+
+
+
+
+
+Task 3.4: Tour Data Submission
+
+
+
+
+Subtask 3.4.1: Develop backend API endpoint to receive and save complete tour data (POST /api/tours).
+
+
+
+
+Subtask 3.4.2: Implement frontend logic to submit all tour data (text, coordinates, audio file references) to the backend.
+
+
+
+
+Subtask 3.4.3: Associate the created tour with the authenticated creator's user ID.
+
+
+
+
+
+
+Task 3.5: Integration Testing (Phase 3)
+
+
+
+
+Subtask 3.5.1: Test end-to-end tour creation flow, including form submission.
+
+
+
+
+Subtask 3.5.2: Verify map address search and pin placement accuracy.
+
+
+
+
+Subtask 3.5.3: Test audio file upload functionality and storage.
+
+
+
+
+Subtask 3.5.4: Confirm tour data is correctly saved and associated with the creator.
+
+
+
+Dependencies:
+
+•
+Task 3.2 depends on Task 3.1 (Map for placement is part of the form).
+
+•
+Task 3.3 depends on Task 3.1 (Audio upload is part of the form).
+
+•
+Task 3.4 depends on Tasks 3.1, 3.2, and 3.3 (Submission requires all data to be collected).
+

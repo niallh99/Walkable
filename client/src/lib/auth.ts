@@ -1,22 +1,48 @@
 import { apiRequest } from "./queryClient";
 
 export async function loginUser(email: string, password: string) {
-  const response = await apiRequest("POST", "/api/login", {
-    email,
-    password,
-  });
-  
-  return response.json();
+  try {
+    const response = await apiRequest("/api/login", {
+      method: "POST",
+      body: {
+        email,
+        password,
+      },
+    });
+    
+    return await response.json();
+  } catch (error: any) {
+    // Extract JSON error message if available
+    try {
+      const errorData = JSON.parse(error.message.split(': ')[1]);
+      throw new Error(errorData.details || errorData.error || "Login failed");
+    } catch {
+      throw new Error("Login failed. Please check your credentials.");
+    }
+  }
 }
 
 export async function registerUser(username: string, email: string, password: string) {
-  const response = await apiRequest("POST", "/api/register", {
-    username,
-    email,
-    password,
-  });
-  
-  return response.json();
+  try {
+    const response = await apiRequest("/api/register", {
+      method: "POST",
+      body: {
+        username,
+        email,
+        password,
+      },
+    });
+    
+    return await response.json();
+  } catch (error: any) {
+    // Extract JSON error message if available
+    try {
+      const errorData = JSON.parse(error.message.split(': ')[1]);
+      throw new Error(errorData.details || errorData.error || "Registration failed");
+    } catch {
+      throw new Error("Registration failed. Please try again.");
+    }
+  }
 }
 
 export function getAuthToken(): string | null {
