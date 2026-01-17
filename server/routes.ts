@@ -9,6 +9,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import rateLimit from "express-rate-limit";
+import xss from "xss";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -16,6 +17,12 @@ if (!JWT_SECRET) {
 }
 const JWT_EXPIRES_IN = "7d";
 const CORS_ORIGIN = process.env.CORS_ORIGIN;
+
+// Sanitize user input to prevent XSS (applied on write, not read)
+const sanitizeText = (text: string | undefined | null): string => {
+  if (!text) return '';
+  return xss(text);
+};
 
 // Rate limiters
 const globalLimiter = rateLimit({
@@ -196,9 +203,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const saltRounds = 12;
       const hashedPassword = await bcrypt.hash(validatedData.password, saltRounds);
 
-      // Create user
+      // Create user with sanitized username
       const user = await storage.createUser({
         ...validatedData,
+        username: sanitizeText(validatedData.username),
         password: hashedPassword,
       });
 
@@ -393,13 +401,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { stops, ...tourData } = req.body;
       const validatedTourData = insertTourSchema.parse(tourData);
-      
+
+      // Sanitize tour text fields
+      const sanitizedTourData = {
+        ...validatedTourData,
+        title: sanitizeText(validatedTourData.title),
+        description: sanitizeText(validatedTourData.description),
+      };
+
       let tour;
       if (stops && stops.length > 0) {
-        // Validate and prepare stops data
+        // Validate and sanitize stops data
         const validatedStops = stops.map((stop: any) => ({
-          title: stop.title || '',
-          description: stop.description || '',
+          title: sanitizeText(stop.title) || '',
+          description: sanitizeText(stop.description) || '',
           latitude: stop.latitude || '',
           longitude: stop.longitude || '',
           audioFileUrl: stop.audioFileUrl || '',
@@ -409,12 +424,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
 
         tour = await storage.createTourWithStops({
-          ...validatedTourData,
+          ...sanitizedTourData,
           creatorId: req.user.id,
         }, validatedStops);
       } else {
         tour = await storage.createTour({
-          ...validatedTourData,
+          ...sanitizedTourData,
           creatorId: req.user.id,
         });
       }
@@ -527,12 +542,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Sanitize tour text fields
+      const sanitizedTourData = {
+        ...validatedTourData,
+        title: sanitizeText(validatedTourData.title),
+        description: sanitizeText(validatedTourData.description),
+      };
+
       let updatedTour;
       if (stops && stops.length > 0) {
-        // Validate and prepare stops data
+        // Validate and sanitize stops data
         const validatedStops = stops.map((stop: any) => ({
-          title: stop.title || '',
-          description: stop.description || '',
+          title: sanitizeText(stop.title) || '',
+          description: sanitizeText(stop.description) || '',
           latitude: stop.latitude || '',
           longitude: stop.longitude || '',
           audioFileUrl: stop.audioFileUrl || '',
@@ -542,12 +564,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
 
         updatedTour = await storage.updateTourWithStops(tourId, {
-          ...validatedTourData,
+          ...sanitizedTourData,
           creatorId: req.user.id,
         }, validatedStops);
       } else {
         updatedTour = await storage.updateTour(tourId, {
-          ...validatedTourData,
+          ...sanitizedTourData,
           creatorId: req.user.id,
         });
       }
@@ -900,8 +922,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const updatedUser = await storage.updateUserProfile(userId, validatedData);
-      
+      // Sanitize username if provided
+      const sanitizedData = {
+        ...validatedData,
+        username: validatedData.username ? sanitizeText(validatedData.username) : validatedData.username,
+      };
+
+      const updatedUser = await storage.updateUserProfile(userId, sanitizedData);
+
       // Remove password from response
       const { password, ...userProfile } = updatedUser;
       res.json({
