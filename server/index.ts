@@ -42,11 +42,34 @@ app.use((req, res, next) => {
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    // Handle Zod validation errors
+    if (err.name === 'ZodError') {
+      return res.status(400).json({
+        error: "Invalid input",
+        details: err.errors?.map((e: any) => e.message).join(', ') || 'Validation failed'
+      });
+    }
+
+    // Handle multer file size errors
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        error: "File too large",
+        details: "The uploaded file exceeds the size limit"
+      });
+    }
+
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    // Log server errors
+    if (status >= 500) {
+      console.error('Server error:', err);
+    }
+
+    res.status(status).json({
+      error: status >= 500 ? "Internal server error" : "Request failed",
+      details: status >= 500 ? "An unexpected error occurred" : message
+    });
   });
 
   // importantly only setup vite in development and after
