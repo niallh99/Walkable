@@ -44,7 +44,7 @@ export const tourStops = pgTable("tour_stops", {
 export const completedTours = pgTable("completed_tours", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
-  tourId: integer("tour_id").references(() => tours.id).notNull(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
   completedAt: timestamp("completed_at").defaultNow().notNull(),
 });
 
