@@ -10,14 +10,12 @@ import path from "path";
 import fs from "fs";
 import rateLimit from "express-rate-limit";
 import xss from "xss";
+import { config } from "./config";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('FATAL: JWT_SECRET environment variable is required but not set');
-}
+const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = "7d";
-const CORS_ORIGIN = process.env.CORS_ORIGIN;
-const DISABLE_UPLOADS = process.env.DISABLE_UPLOADS === 'true';
+const CORS_ORIGIN = config.CORS_ORIGIN;
+const DISABLE_UPLOADS = config.DISABLE_UPLOADS === 'true';
 
 // Upload kill-switch middleware
 const checkUploadsEnabled = (req: any, res: any, next: any) => {
@@ -371,19 +369,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const googleApiKey = process.env.GOOGLE_API_KEY;
-      if (!googleApiKey) {
-        return res.status(500).json({
-          error: "Internal server error",
-          details: "Google API key not configured"
-        });
-      }
-
       const params = new URLSearchParams({
         origin: origin as string,
         destination: destination as string,
         mode: mode as string,
-        key: googleApiKey
+        key: config.GOOGLE_API_KEY
       });
 
       if (waypoints) {
@@ -788,13 +778,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Address parameter is required" });
       }
       
-      const apiKey = process.env.GOOGLE_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({ error: "Google API key not configured" });
-      }
-      
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address as string)}&key=${apiKey}`
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address as string)}&key=${config.GOOGLE_API_KEY}`
       );
       
       if (!response.ok) {
