@@ -17,6 +17,18 @@ if (!JWT_SECRET) {
 }
 const JWT_EXPIRES_IN = "7d";
 const CORS_ORIGIN = process.env.CORS_ORIGIN;
+const DISABLE_UPLOADS = process.env.DISABLE_UPLOADS === 'true';
+
+// Upload kill-switch middleware
+const checkUploadsEnabled = (req: any, res: any, next: any) => {
+  if (DISABLE_UPLOADS) {
+    return res.status(503).json({
+      error: "Service temporarily unavailable",
+      details: "File uploads are currently disabled"
+    });
+  }
+  next();
+};
 
 // Sanitize user input to prevent XSS (applied on write, not read)
 const sanitizeText = (text: string | undefined | null): string => {
@@ -636,7 +648,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cover image upload endpoint (protected route)
-  app.post("/api/upload/cover-image", uploadLimiter, authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
+  app.post("/api/upload/cover-image", checkUploadsEnabled, uploadLimiter, authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -679,7 +691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Audio file upload endpoint (protected route)
-  app.post("/api/upload/audio", uploadLimiter, authenticateToken, audioUpload.single('audio'), async (req: any, res) => {
+  app.post("/api/upload/audio", checkUploadsEnabled, uploadLimiter, authenticateToken, audioUpload.single('audio'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -723,7 +735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload video file
-  app.post("/api/upload/video", uploadLimiter, authenticateToken, videoUpload.single('video'), async (req: any, res) => {
+  app.post("/api/upload/video", checkUploadsEnabled, uploadLimiter, authenticateToken, videoUpload.single('video'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
