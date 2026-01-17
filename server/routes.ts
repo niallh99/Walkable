@@ -9,8 +9,12 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is required but not set');
+}
 const JWT_EXPIRES_IN = "7d";
+const CORS_ORIGIN = process.env.CORS_ORIGIN;
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -124,7 +128,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve uploaded audio files as static content first
   app.use('/uploads', express.static(uploadsDir, {
     setHeaders: (res, path) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      if (CORS_ORIGIN) {
+        res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+      }
       res.setHeader('Access-Control-Allow-Methods', 'GET');
       if (path.endsWith('.mp3') || path.endsWith('.wav') || path.endsWith('.m4a') || path.endsWith('.ogg')) {
         res.setHeader('Content-Type', 'audio/mpeg');
