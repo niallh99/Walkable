@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -25,7 +25,10 @@ export const tours = pgTable("tours", {
   creatorId: integer("creator_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  creatorIdIdx: index("tours_creator_id_idx").on(table.creatorId),
+  locationIdx: index("tours_location_idx").on(table.latitude, table.longitude),
+}));
 
 export const tourStops = pgTable("tour_stops", {
   id: serial("id").primaryKey(),
@@ -46,7 +49,9 @@ export const completedTours = pgTable("completed_tours", {
   userId: integer("user_id").references(() => users.id).notNull(),
   tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
   completedAt: timestamp("completed_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("completed_tours_user_id_idx").on(table.userId),
+}));
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
