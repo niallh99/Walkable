@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import rateLimit from "express-rate-limit";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -15,6 +16,31 @@ if (!JWT_SECRET) {
 }
 const JWT_EXPIRES_IN = "7d";
 const CORS_ORIGIN = process.env.CORS_ORIGIN;
+
+// Rate limiters
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests", details: "Please try again later" }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 requests per minute for auth routes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts", details: "Please try again later" }
+});
+
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 uploads per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many uploads", details: "Please try again later" }
+});
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -140,8 +166,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   }));
+
+  // Apply global rate limiter to all API routes
+  app.use('/api', globalLimiter);
+
   // User Registration
-  app.post("/api/register", async (req, res) => {
+  app.post("/api/register", authLimiter, async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
       
@@ -201,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User Login
-  app.post("/api/login", async (req, res) => {
+  app.post("/api/login", authLimiter, async (req, res) => {
     try {
       const validatedData = loginUserSchema.parse(req.body);
       
@@ -584,7 +614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cover image upload endpoint (protected route)
-  app.post("/api/upload/cover-image", authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
+  app.post("/api/upload/cover-image", uploadLimiter, authenticateToken, imageUpload.single('coverImage'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -627,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Audio file upload endpoint (protected route)
-  app.post("/api/upload/audio", authenticateToken, audioUpload.single('audio'), async (req: any, res) => {
+  app.post("/api/upload/audio", uploadLimiter, authenticateToken, audioUpload.single('audio'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -671,7 +701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload video file
-  app.post("/api/upload/video", authenticateToken, videoUpload.single('video'), async (req: any, res) => {
+  app.post("/api/upload/video", uploadLimiter, authenticateToken, videoUpload.single('video'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
