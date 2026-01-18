@@ -2,6 +2,7 @@ import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { insertUserSchema, loginUserSchema, insertTourSchema, updateUserProfileSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -186,6 +187,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Apply global rate limiter to all API routes
   app.use('/api', globalLimiter);
+
+  // Health check endpoint
+  app.get("/api/health", async (req, res) => {
+    try {
+      await pool.query('SELECT 1');
+      res.json({
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        database: "connected"
+      });
+    } catch (error) {
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        database: "disconnected"
+      });
+    }
+  });
 
   // User Registration
   app.post("/api/register", authLimiter, async (req, res) => {
