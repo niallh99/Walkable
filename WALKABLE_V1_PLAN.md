@@ -358,6 +358,36 @@ After V1 ships, prioritize:
 
 ---
 
+---
+
+## Appendix: Database Backup Procedures (C5)
+
+### Provider: Neon PostgreSQL
+
+**Backup Type:** Neon provides automatic point-in-time recovery (PITR) for all databases.
+
+**Backup Schedule:**
+- Continuous WAL archiving (Write-Ahead Logging)
+- Point-in-time recovery available within retention window
+- Default retention: 7 days (Free tier) / 30 days (Pro tier)
+
+**Restore Procedure:**
+1. Log into Neon Console (console.neon.tech)
+2. Navigate to project → Branches
+3. Create a new branch from a specific point in time
+4. Connect to the restored branch to verify data
+5. If verified, promote the branch or migrate data as needed
+
+**Pre-Launch Checklist:**
+- [ ] Verify Neon project has automatic backups enabled
+- [ ] Confirm retention period meets requirements
+- [ ] Test restore by creating a branch from 24 hours ago
+- [ ] Document connection string format for restored branches
+
+**V1 Scope:** No custom backup tooling. Rely on Neon's built-in PITR capabilities.
+
+---
+
 ## Conclusion
 
 Walkable V1 requires **~25 focused tasks** to reach production readiness. The majority are small, low-risk changes focused on security and stability. No new features are needed - the core product is complete. The biggest wins are:
