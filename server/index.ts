@@ -4,12 +4,27 @@ import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { logger } from "./logger";
-
+import { config } from "./config";
 
 const app = express();
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// CORS middleware for API routes
+app.use('/api', (req, res, next) => {
+  const origin = config.CORS_ORIGIN || (config.NODE_ENV === 'development' ? 'http://localhost:5000' : '');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
