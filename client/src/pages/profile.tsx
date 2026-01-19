@@ -30,6 +30,7 @@ export default function Profile() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [formErrors, setFormErrors] = useState<{ username?: string; email?: string }>({});
 
   // Fetch user's created tours
   const { data: createdTours = [], isLoading: isLoadingTours } = useQuery<Tour[]>({
@@ -91,11 +92,32 @@ export default function Profile() {
     if (user) {
       setEditUsername(user.username);
       setEditEmail(user.email);
+      setFormErrors({});
       setIsEditDialogOpen(true);
     }
   };
 
   const handleSaveProfile = () => {
+    const errors: { username?: string; email?: string } = {};
+
+    if (!editUsername.trim()) {
+      errors.username = 'Username is required';
+    } else if (editUsername.length < 3) {
+      errors.username = 'Username must be at least 3 characters';
+    }
+
+    if (!editEmail.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    setFormErrors({});
     updateProfileMutation.mutate({
       username: editUsername,
       email: editEmail,
@@ -402,24 +424,40 @@ export default function Profile() {
               <Label htmlFor="username" className="text-right">
                 Username
               </Label>
-              <Input
-                id="username"
-                value={editUsername}
-                onChange={(e) => setEditUsername(e.target.value)}
-                className="col-span-3"
-              />
+              <div className="col-span-3">
+                <Input
+                  id="username"
+                  value={editUsername}
+                  onChange={(e) => {
+                    setEditUsername(e.target.value);
+                    if (formErrors.username) setFormErrors(prev => ({ ...prev, username: undefined }));
+                  }}
+                  className={formErrors.username ? 'border-red-500' : ''}
+                />
+                {formErrors.username && (
+                  <p className="text-sm text-red-600 mt-1">{formErrors.username}</p>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
                 Email
               </Label>
-              <Input
-                id="email"
-                type="email"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                className="col-span-3"
-              />
+              <div className="col-span-3">
+                <Input
+                  id="email"
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => {
+                    setEditEmail(e.target.value);
+                    if (formErrors.email) setFormErrors(prev => ({ ...prev, email: undefined }));
+                  }}
+                  className={formErrors.email ? 'border-red-500' : ''}
+                />
+                {formErrors.email && (
+                  <p className="text-sm text-red-600 mt-1">{formErrors.email}</p>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>
