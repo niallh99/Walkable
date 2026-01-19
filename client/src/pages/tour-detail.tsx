@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video } from "lucide-react";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Tour, TourStop } from "@shared/schema";
 
@@ -169,7 +169,10 @@ export default function TourDetail() {
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <div className="pt-16 flex items-center justify-center h-96">
-          <div className="text-lg text-gray-600">Loading tour details...</div>
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-walkable-cyan mx-auto mb-4" />
+            <p className="text-gray-600">Loading tour details...</p>
+          </div>
         </div>
       </div>
     );

@@ -1095,6 +1095,7 @@ export default function CreateTourNew() {
         <div className="pt-24 py-12">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-walkable-cyan mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Loading tour data...</h2>
               <p className="text-gray-600">Please wait while we fetch your tour information.</p>
             </div>
