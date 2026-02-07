@@ -3,7 +3,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { pool } from "./db";
-import { insertUserSchema, loginUserSchema, insertTourSchema, updateUserProfileSchema } from "@shared/schema";
+import { insertUserSchema, loginUserSchema, insertTourSchema, updateUserProfileSchema, updateUserRoleSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
@@ -146,6 +146,32 @@ const imageUpload = multer({
   }
 });
 
+// Configure multer for profile image uploads
+const profileImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const profileImageUpload = multer({
+  storage: profileImageStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only image files are allowed.'));
+    }
+  }
+});
+
 // Middleware to verify JWT token
 const authenticateToken = async (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
@@ -166,6 +192,17 @@ const authenticateToken = async (req: any, res: any, next: any) => {
   } catch (error) {
     return res.status(403).json({ message: 'Invalid or expired token' });
   }
+};
+
+// Middleware to require creator role
+const requireCreator = (req: any, res: any, next: any) => {
+  if (req.user.role !== 'creator') {
+    return res.status(403).json({
+      error: "Forbidden",
+      details: "Only creators can perform this action. Switch your role to creator first."
+    });
+  }
+  next();
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -248,7 +285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json({
         message: "User registered successfully",
-        user: { id: user.id, username: user.username, email: user.email },
+        user: { id: user.id, username: user.username, email: user.email, role: user.role },
         token,
       });
     } catch (error: any) {
@@ -299,7 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         message: "Login successful",
-        user: { id: user.id, username: user.username, email: user.email },
+        user: { id: user.id, username: user.username, email: user.email, role: user.role },
         token,
       });
     } catch (error: any) {
@@ -325,6 +362,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: req.user.id,
         username: req.user.username,
         email: req.user.email,
+        bio: req.user.bio,
+        profileImage: req.user.profileImage,
+        location: req.user.location,
+        role: req.user.role,
       }
     });
   });
@@ -417,8 +458,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create tour (protected route)
-  app.post("/api/tours", authenticateToken, async (req: any, res) => {
+  // Create tour (protected route, creator only)
+  app.post("/api/tours", authenticateToken, requireCreator, async (req: any, res) => {
     try {
       const { stops, ...tourData } = req.body;
       const validatedTourData = insertTourSchema.parse(tourData);
@@ -813,7 +854,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Profile API Endpoints - Task 5.1
+  // Profile API Endpoints
+
+  // Update own profile (PUT /api/users/profile) - uses JWT to identify user
+  app.put("/api/users/profile", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const validatedData = updateUserProfileSchema.parse(req.body);
+
+      // Check if email is already taken by another user
+      if (validatedData.email) {
+        const existingUser = await storage.getUserByEmail(validatedData.email);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(409).json({
+            error: "Conflict",
+            details: "Email already in use"
+          });
+        }
+      }
+
+      // Check if username is already taken by another user
+      if (validatedData.username) {
+        const existingUser = await storage.getUserByUsername(validatedData.username);
+        if (existingUser && existingUser.id !== userId) {
+          return res.status(409).json({
+            error: "Conflict",
+            details: "Username already taken"
+          });
+        }
+      }
+
+      // Sanitize text fields
+      const sanitizedData: Record<string, any> = { ...validatedData };
+      if (sanitizedData.username) sanitizedData.username = sanitizeText(sanitizedData.username);
+      if (sanitizedData.bio) sanitizedData.bio = sanitizeText(sanitizedData.bio);
+      if (sanitizedData.location) sanitizedData.location = sanitizeText(sanitizedData.location);
+
+      const updatedUser = await storage.updateUserProfile(userId, sanitizedData);
+      const { password, ...userProfile } = updatedUser;
+
+      res.json({
+        message: "Profile updated successfully",
+        user: userProfile
+      });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: error.errors.map((e: any) => e.message).join(', ')
+        });
+      }
+      console.error('Update profile error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to update profile"
+      });
+    }
+  });
+
+  // Switch user role (PUT /api/users/role)
+  app.put("/api/users/role", authenticateToken, async (req: any, res) => {
+    try {
+      const { role } = updateUserRoleSchema.parse(req.body);
+
+      const updatedUser = await storage.updateUserProfile(req.user.id, { role });
+      const { password, ...userProfile } = updatedUser;
+
+      res.json({
+        message: `Role switched to ${role}`,
+        user: userProfile
+      });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: "Role must be 'explorer' or 'creator'"
+        });
+      }
+      console.error('Update role error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to update role"
+      });
+    }
+  });
+
+  // Upload profile image (POST /api/users/profile-image)
+  app.post("/api/users/profile-image", checkUploadsEnabled, uploadLimiter, authenticateToken, profileImageUpload.single('profileImage'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "No image file provided"
+        });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+
+      // Update user's profileImage in the database
+      const updatedUser = await storage.updateUserProfile(req.user.id, { profileImage: fileUrl });
+      const { password, ...userProfile } = updatedUser;
+
+      res.json({
+        message: "Profile image uploaded successfully",
+        imageUrl: fileUrl,
+        user: userProfile
+      });
+    } catch (error: any) {
+      console.error('Profile image upload error:', error);
+
+      if (error.message?.includes('Invalid file type')) {
+        return res.status(400).json({
+          error: "Invalid file type",
+          details: "Only image files (JPEG, PNG, GIF) are allowed"
+        });
+      }
+
+      if (error.message?.includes('File too large')) {
+        return res.status(400).json({
+          error: "File too large",
+          details: "Profile image must be less than 5MB"
+        });
+      }
+
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to upload profile image"
+      });
+    }
+  });
 
   // Get user/creator profile data (GET /api/users/:id/profile)
   app.get("/api/users/:id/profile", async (req, res) => {
@@ -894,11 +1063,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update user profile information (PUT /api/users/:id/profile)
+  // Update user profile information (PUT /api/users/:id/profile) - legacy endpoint
   app.put("/api/users/:id/profile", authenticateToken, async (req: any, res) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       if (isNaN(userId)) {
         return res.status(400).json({
           error: "Bad request",
@@ -907,7 +1076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if user is updating their own profile
-      if (req.user.userId !== userId) {
+      if (req.user.id !== userId) {
         return res.status(403).json({
           error: "Forbidden",
           details: "You can only update your own profile"
@@ -938,11 +1107,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Sanitize username if provided
-      const sanitizedData = {
-        ...validatedData,
-        username: validatedData.username ? sanitizeText(validatedData.username) : validatedData.username,
-      };
+      // Sanitize text fields
+      const sanitizedData: Record<string, any> = { ...validatedData };
+      if (sanitizedData.username) sanitizedData.username = sanitizeText(sanitizedData.username);
+      if (sanitizedData.bio) sanitizedData.bio = sanitizeText(sanitizedData.bio);
+      if (sanitizedData.location) sanitizedData.location = sanitizeText(sanitizedData.location);
 
       const updatedUser = await storage.updateUserProfile(userId, sanitizedData);
 
@@ -975,7 +1144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if user is marking their own completion
-      if (req.user.userId !== userId) {
+      if (req.user.id !== userId) {
         return res.status(403).json({
           error: "Forbidden",
           details: "You can only mark tours as completed for yourself"

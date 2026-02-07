@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(cmd.exe /c \"FOR /F \"\"tokens=5\"\" %P IN \\(''netstat -aon ^| findstr :5000''\\) DO taskkill /F /PID %P\")",
+      "Bash(npm run dev:*)",
+      "Bash(npx vite build:*)"
     ]
   }
 }

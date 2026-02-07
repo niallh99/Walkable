@@ -1,4 +1,4 @@
-import { users, tours, tourStops, completedTours, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -8,7 +8,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(insertUser: InsertUser): Promise<User>;
-  updateUserProfile(id: number, updateData: UpdateUserProfile): Promise<User>;
+  updateUserProfile(id: number, updateData: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User>;
   
   // Tour methods
   getAllTours(): Promise<Tour[]>;
@@ -22,9 +22,14 @@ export interface IStorage {
   getNearbyTours(lat: number, lon: number, radiusKm: number): Promise<Tour[]>;
   getToursByCreator(creatorId: number): Promise<Tour[]>;
   
+  // Tour progress methods
+  markStopCompleted(userId: number, tourId: number, stopId: number): Promise<TourProgress>;
+  getTourProgress(userId: number, tourId: number): Promise<TourProgress[]>;
+
   // Completed tours methods
   getCompletedToursByUser(userId: number): Promise<(CompletedTour & { tour: Tour })[]>;
   markTourAsCompleted(userId: number, tourId: number): Promise<CompletedTour>;
+  isTourCompleted(userId: number, tourId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -51,7 +56,7 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUserProfile(id: number, updateData: UpdateUserProfile): Promise<User> {
+  async updateUserProfile(id: number, updateData: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User> {
     const [user] = await db
       .update(users)
       .set({

@@ -7,6 +7,10 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
+  bio: text("bio"),
+  profileImage: text("profile_image"),
+  location: text("location"),
+  role: text("role").default("explorer").notNull(), // 'explorer' | 'creator'
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -44,6 +48,17 @@ export const tourStops = pgTable("tour_stops", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tourProgress = pgTable("tour_progress", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  stopId: integer("stop_id").references(() => tourStops.id, { onDelete: 'cascade' }).notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+}, (table) => ({
+  userTourIdx: index("tour_progress_user_tour_idx").on(table.userId, table.tourId),
+  uniqueProgress: index("tour_progress_unique_idx").on(table.userId, table.tourId, table.stopId),
+}));
+
 export const completedTours = pgTable("completed_tours", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
@@ -74,12 +89,22 @@ export const insertTourSchema = createInsertSchema(tours).omit({
 export const updateUserProfileSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
+  bio: true,
+  profileImage: true,
+  location: true,
 });
 
 export const insertTourStopSchema = createInsertSchema(tourStops).omit({
   id: true,
   createdAt: true,
   tourId: true,
+});
+
+export const userRoles = ['explorer', 'creator'] as const;
+export type UserRole = typeof userRoles[number];
+
+export const updateUserRoleSchema = z.object({
+  role: z.enum(userRoles),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -90,4 +115,5 @@ export type Tour = typeof tours.$inferSelect;
 export type TourStop = typeof tourStops.$inferSelect;
 export type InsertTourStop = z.infer<typeof insertTourStopSchema>;
 export type CompletedTour = typeof completedTours.$inferSelect;
+export type TourProgress = typeof tourProgress.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;

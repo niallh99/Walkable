@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from "@/lib/queryClient";
 import { Navbar } from "@/components/navbar";
@@ -9,10 +9,11 @@ import { useAuth } from "@/components/auth-context";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2 } from "lucide-react";
+import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera } from "lucide-react";
 import { Tour, UpdateUserProfile } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -24,13 +25,20 @@ type CompletedTour = {
   tour: Tour;
 };
 
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { toast } = useToast();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editLocation, setEditLocation] = useState('');
   const [formErrors, setFormErrors] = useState<{ username?: string; email?: string }>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Fetch user's created tours
   const { data: createdTours = [], isLoading: isLoadingTours } = useQuery<Tour[]>({
@@ -40,7 +48,6 @@ export default function Profile() {
       const response = await fetch(`/api/users/${user.id}/tours`);
       if (!response.ok) throw new Error('Failed to fetch created tours');
       const data = await response.json();
-      console.log('Created tours data:', data);
       return data;
     },
     enabled: !!user?.id,
@@ -61,23 +68,20 @@ export default function Profile() {
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (updateData: UpdateUserProfile) => {
-      if (!user?.id) throw new Error('User not authenticated');
-      const response = await apiRequest(`/api/users/${user.id}/profile`, {
+      const response = await apiRequest('/api/users/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
       });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      updateUser(data);
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully.",
       });
       setIsEditDialogOpen(false);
-      queryClient.invalidateQueries({
-        queryKey: ['/api/auth/user'],
-      });
     },
     onError: (error: Error) => {
       toast({
@@ -88,10 +92,76 @@ export default function Profile() {
     },
   });
 
+  // Profile image upload mutation
+  const uploadImageMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('profileImage', file);
+      const response = await apiRequest('/api/users/profile-image', {
+        method: 'POST',
+        body: formData,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      updateUser({ profileImage: data.profileImage });
+      setImagePreview(null);
+      toast({
+        title: "Profile image updated",
+        description: "Your profile image has been updated successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      setImagePreview(null);
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a JPEG, PNG, or GIF image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast({
+        title: "File too large",
+        description: "Image must be under 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setImagePreview(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    uploadImageMutation.mutate(file);
+
+    // Reset file input so the same file can be re-selected
+    e.target.value = '';
+  };
+
   const handleEditProfile = () => {
     if (user) {
       setEditUsername(user.username);
       setEditEmail(user.email);
+      setEditBio(user.bio || '');
+      setEditLocation(user.location || '');
       setFormErrors({});
       setIsEditDialogOpen(true);
     }
@@ -121,13 +191,10 @@ export default function Profile() {
     updateProfileMutation.mutate({
       username: editUsername,
       email: editEmail,
+      bio: editBio || undefined,
+      location: editLocation || undefined,
     });
   };
-
-  // Debug logging
-  console.log('Profile render - User:', user);
-  console.log('Profile render - Created tours:', createdTours, 'Loading:', isLoadingTours);
-  console.log('Profile render - Completed tours:', completedTours, 'Loading:', isLoadingCompleted);
 
   if (!user) {
     return (
@@ -166,6 +233,8 @@ export default function Profile() {
     );
   }
 
+  const displayImage = imagePreview || user.profileImage;
+
   return (
     <div className="min-h-screen bg-walkable-light-gray">
       <Navbar />
@@ -175,24 +244,55 @@ export default function Profile() {
           <Card className="mb-8">
             <CardContent className="pt-8 pb-6">
               <div className="flex flex-col md:flex-row md:items-start space-y-6 md:space-y-0 md:space-x-8">
-                {/* Avatar */}
+                {/* Avatar with upload */}
                 <div className="flex-shrink-0">
-                  <div className="w-32 h-32 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center overflow-hidden">
-                    <User className="h-16 w-16 text-white" />
+                  <div
+                    className="relative w-32 h-32 rounded-full group cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="w-32 h-32 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center overflow-hidden">
+                      {displayImage ? (
+                        <img
+                          src={displayImage}
+                          alt={user.username}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="h-16 w-16 text-white" />
+                      )}
+                    </div>
+                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {uploadImageMutation.isPending ? (
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
+                      ) : (
+                        <Camera className="h-6 w-6 text-white" />
+                      )}
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif"
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
                   </div>
                 </div>
-                
+
                 {/* User Info */}
                 <div className="flex-1 space-y-4">
                   <div>
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">{user.username}</h1>
-                    <div className="flex items-center text-gray-600 mb-3">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      <span>San Francisco, CA</span>
-                    </div>
-                    <p className="text-gray-700 text-base leading-relaxed mb-4">
-                      Passionate explorer who loves discovering hidden gems and sharing amazing walking experiences.
-                    </p>
+                    {user.location && (
+                      <div className="flex items-center text-gray-600 mb-3">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        <span>{user.location}</span>
+                      </div>
+                    )}
+                    {user.bio && (
+                      <p className="text-gray-700 text-base leading-relaxed mb-4">
+                        {user.bio}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-3">
                       <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
                         <User className="h-3 w-3 mr-1" />
@@ -205,10 +305,10 @@ export default function Profile() {
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-gray-500 mt-3">
                       <span>@{user.username.toLowerCase()}</span>
-                      <span>Joined 6/15/2023</span>
+                      <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-between items-center">
                     <div></div>
                     <Button
@@ -223,7 +323,7 @@ export default function Profile() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Stats Row */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8 pt-6 border-t border-gray-200">
                 <div className="text-center">
@@ -310,8 +410,8 @@ export default function Profile() {
                       </div>
                     ))}
                     <div className="text-center pt-4">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="border-walkable-cyan text-walkable-cyan"
                         onClick={() => window.location.href = '/create-tour'}
                       >
@@ -326,7 +426,7 @@ export default function Profile() {
                     <p className="text-walkable-gray text-sm mb-4">
                       Share your local knowledge by creating your first audio tour
                     </p>
-                    <Button 
+                    <Button
                       className="bg-walkable-cyan hover:bg-walkable-cyan text-white"
                       onClick={() => window.location.href = '/create-tour'}
                     >
@@ -380,8 +480,8 @@ export default function Profile() {
                       </div>
                     ))}
                     <div className="text-center pt-4">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="border-walkable-cyan text-walkable-cyan"
                         onClick={() => window.location.href = '/discover'}
                       >
@@ -396,7 +496,7 @@ export default function Profile() {
                     <p className="text-walkable-gray text-sm mb-4">
                       Start exploring amazing audio tours in your area
                     </p>
-                    <Button 
+                    <Button
                       className="bg-walkable-cyan hover:bg-walkable-cyan text-white"
                       onClick={() => window.location.href = '/discover'}
                     >
@@ -412,7 +512,7 @@ export default function Profile() {
 
       {/* Edit Profile Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>Edit Profile</DialogTitle>
             <DialogDescription>
@@ -459,6 +559,35 @@ export default function Profile() {
                 )}
               </div>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="location" className="text-right">
+                Location
+              </Label>
+              <div className="col-span-3">
+                <Input
+                  id="location"
+                  value={editLocation}
+                  onChange={(e) => setEditLocation(e.target.value)}
+                  placeholder="e.g. San Francisco, CA"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label htmlFor="bio" className="text-right pt-2">
+                Bio
+              </Label>
+              <div className="col-span-3">
+                <Textarea
+                  id="bio"
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  placeholder="Tell others about yourself..."
+                  rows={3}
+                  maxLength={500}
+                />
+                <p className="text-xs text-gray-400 mt-1 text-right">{editBio.length}/500</p>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -486,7 +615,7 @@ export default function Profile() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       <Footer />
     </div>
   );
