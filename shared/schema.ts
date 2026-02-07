@@ -26,6 +26,8 @@ export const tours = pgTable("tours", {
   duration: integer("duration"), // in minutes
   distance: text("distance"), // e.g., "2.3 miles"
   coverImageUrl: text("cover_image_url"),
+  previewAudioUrl: text("preview_audio_url"),
+  previewVideoUrl: text("preview_video_url"),
   price: numeric("price", { precision: 10, scale: 2 }).default('0').notNull(),
   currency: text("currency").default('EUR').notNull(),
   creatorId: integer("creator_id").references(() => users.id).notNull(),

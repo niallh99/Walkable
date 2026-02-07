@@ -19,6 +19,7 @@ export interface IStorage {
   updateTour(id: number, tourData: InsertTour & { creatorId: number }): Promise<Tour>;
   updateTourWithStops(id: number, tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour>;
   deleteTour(id: number): Promise<void>;
+  updateTourFields(id: number, fields: Partial<Omit<Tour, 'id' | 'createdAt'>>): Promise<Tour>;
   getNearbyTours(lat: number, lon: number, radiusKm: number): Promise<Tour[]>;
   getToursByCreator(creatorId: number): Promise<Tour[]>;
   
@@ -148,6 +149,15 @@ export class DatabaseStorage implements IStorage {
   async getToursByCreator(creatorId: number): Promise<Tour[]> {
     const creatorTours = await db.select().from(tours).where(eq(tours.creatorId, creatorId));
     return creatorTours;
+  }
+
+  async updateTourFields(id: number, fields: Partial<Omit<Tour, 'id' | 'createdAt'>>): Promise<Tour> {
+    const [updated] = await db
+      .update(tours)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(eq(tours.id, id))
+      .returning();
+    return updated;
   }
 
   async getCompletedToursByUser(userId: number): Promise<(CompletedTour & { tour: Tour })[]> {

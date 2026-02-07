@@ -833,6 +833,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload preview audio for a tour (POST /api/tours/:id/preview-audio)
+  app.post("/api/tours/:id/preview-audio", checkUploadsEnabled, uploadLimiter, authenticateToken, requireCreator, audioUpload.single('previewAudio'), async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+      if (tour.creatorId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "You can only update your own tours" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Bad request", details: "No audio file provided" });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      const updatedTour = await storage.updateTourFields(tourId, { previewAudioUrl: fileUrl });
+
+      res.json({
+        message: "Preview audio uploaded successfully",
+        previewAudioUrl: fileUrl,
+        tour: updatedTour,
+      });
+    } catch (error: any) {
+      console.error('Preview audio upload error:', error);
+      if (error.message?.includes('Invalid file type')) {
+        return res.status(400).json({ error: "Invalid file type", details: "Only audio files are allowed" });
+      }
+      if (error.message?.includes('File too large')) {
+        return res.status(400).json({ error: "File too large", details: "Audio file must be less than 50MB" });
+      }
+      res.status(500).json({ error: "Internal server error", details: "Failed to upload preview audio" });
+    }
+  });
+
+  // Upload preview video for a tour (POST /api/tours/:id/preview-video)
+  app.post("/api/tours/:id/preview-video", checkUploadsEnabled, uploadLimiter, authenticateToken, requireCreator, videoUpload.single('previewVideo'), async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+      if (tour.creatorId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "You can only update your own tours" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Bad request", details: "No video file provided" });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      const updatedTour = await storage.updateTourFields(tourId, { previewVideoUrl: fileUrl });
+
+      res.json({
+        message: "Preview video uploaded successfully",
+        previewVideoUrl: fileUrl,
+        tour: updatedTour,
+      });
+    } catch (error: any) {
+      console.error('Preview video upload error:', error);
+      if (error.message?.includes('Invalid file type')) {
+        return res.status(400).json({ error: "Invalid file type", details: "Only video files (MP4, MOV, WebM) are allowed" });
+      }
+      if (error.message?.includes('File too large')) {
+        return res.status(400).json({ error: "File too large", details: "Video file must be less than 100MB" });
+      }
+      res.status(500).json({ error: "Internal server error", details: "Failed to upload preview video" });
+    }
+  });
+
   // Geocoding proxy endpoint
   app.get("/api/geocode", async (req, res) => {
     console.log("Geocoding endpoint hit with address:", req.query.address);

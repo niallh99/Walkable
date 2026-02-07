@@ -1,29 +1,94 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2 } from "lucide-react";
+import { useAuth } from "@/components/auth-context";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { Tour, TourStop } from "@shared/schema";
 
 interface TourWithStops extends Tour {
   stops: TourStop[];
 }
 
+interface StopProgress {
+  stopId: number;
+  completedAt: string;
+}
+
 export default function TourDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [currentVideo, setCurrentVideo] = useState<HTMLVideoElement | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<number | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const nextStopRef = useRef<HTMLDivElement>(null);
 
   const { data: tour, isLoading } = useQuery<TourWithStops>({
     queryKey: [`/api/tours/${id}/details`],
+  });
+
+  // Fetch progress for logged-in user
+  const { data: progressData } = useQuery<StopProgress[]>({
+    queryKey: [`/api/tours/${id}/progress`],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/tours/${id}/progress`);
+      return response.json();
+    },
+    enabled: !!user && !!id,
+  });
+
+  const completedStopIds = new Set(
+    (progressData || []).map((p) => p.stopId)
+  );
+
+  // Mark stop as visited mutation
+  const markStopMutation = useMutation({
+    mutationFn: async (stopId: number) => {
+      await apiRequest(`/api/tours/${id}/progress`, {
+        method: 'POST',
+        body: { stopId },
+      });
+      return stopId;
+    },
+    onSuccess: (stopId) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tours/${id}/progress`] });
+
+      const tourStops = tour?.stops || [];
+      const newCompletedCount = completedStopIds.size + 1;
+      if (newCompletedCount >= tourStops.length && tourStops.length > 0) {
+        // All stops done — show celebration
+        setShowCelebration(true);
+        // Also invalidate completed tours on profile
+        if (user) {
+          queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'completed-tours'] });
+        }
+      } else {
+        const stop = tourStops.find((s) => s.id === stopId);
+        toast({
+          title: "Stop completed!",
+          description: stop ? `"${stop.title}" marked as visited.` : "Stop marked as visited.",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update progress",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   useEffect(() => {
@@ -38,6 +103,13 @@ export default function TourDetail() {
       }
     };
   }, [currentAudio, currentVideo]);
+
+  // Scroll to the next incomplete stop when progress loads
+  useEffect(() => {
+    if (progressData && progressData.length > 0 && tour?.stops?.length && nextStopRef.current) {
+      nextStopRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [progressData, tour?.stops?.length]);
 
   const playStop = (stop: TourStop, index: number) => {
     const hasAudio = stop.audioFileUrl;
@@ -77,7 +149,7 @@ export default function TourDetail() {
       video.style.width = '100%';
       video.style.maxWidth = '500px';
       video.style.borderRadius = '8px';
-      
+
       video.play().catch((error) => {
         console.error('Error playing video:', error);
         toast({
@@ -99,10 +171,10 @@ export default function TourDetail() {
       const modalOverlay = document.createElement('div');
       modalOverlay.style.cssText = `
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.8); display: flex; align-items: center; 
+        background: rgba(0,0,0,0.8); display: flex; align-items: center;
         justify-content: center; z-index: 1000; padding: 20px;
       `;
-      
+
       const closeButton = document.createElement('button');
       closeButton.innerHTML = '×';
       closeButton.style.cssText = `
@@ -110,7 +182,7 @@ export default function TourDetail() {
         border: none; border-radius: 50%; width: 40px; height: 40px;
         font-size: 24px; cursor: pointer; z-index: 1001;
       `;
-      
+
       closeButton.onclick = () => {
         video.pause();
         document.body.removeChild(modalOverlay);
@@ -198,6 +270,12 @@ export default function TourDetail() {
   // Handle missing stops gracefully
   const tourStops = tour.stops || [];
   const hasStops = tourStops.length > 0;
+  const completedCount = tourStops.filter((s) => completedStopIds.has(s.id)).length;
+  const progressPercent = hasStops ? Math.round((completedCount / tourStops.length) * 100) : 0;
+  const allComplete = hasStops && completedCount === tourStops.length;
+
+  // Find first incomplete stop index for "resume" highlighting
+  const nextIncompleteIndex = tourStops.findIndex((s) => !completedStopIds.has(s.id));
 
   // Convert tour and stops to map format
   const tourStopsForMap = tourStops.map(stop => ({
@@ -220,7 +298,7 @@ export default function TourDetail() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
+
       <div className="pt-16">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-4 py-6">
@@ -233,7 +311,7 @@ export default function TourDetail() {
                 </Button>
               </Link>
             </div>
-            
+
             <div className="flex flex-col space-y-4">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{tour.title}</h1>
@@ -241,11 +319,11 @@ export default function TourDetail() {
                   {tour.category}
                 </Badge>
               </div>
-              
+
               <p className="text-gray-600 text-lg max-w-3xl">
                 {tour.description}
               </p>
-              
+
               <div className="flex items-center space-x-6 text-sm text-gray-500">
                 <div className="flex items-center">
                   <Clock className="h-4 w-4 mr-1" />
@@ -260,6 +338,28 @@ export default function TourDetail() {
                   <span>{tourStops.length} media stops</span>
                 </div>
               </div>
+
+              {/* Progress bar — only for logged-in users with stops */}
+              {user && hasStops && (
+                <div className="max-w-md">
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-gray-600 font-medium">
+                      {allComplete ? (
+                        <span className="text-green-600 flex items-center gap-1">
+                          <CheckCircle2 className="h-4 w-4" /> Tour completed!
+                        </span>
+                      ) : (
+                        `${completedCount} of ${tourStops.length} stops completed`
+                      )}
+                    </span>
+                    <span className="text-gray-400">{progressPercent}%</span>
+                  </div>
+                  <Progress
+                    value={progressPercent}
+                    className="h-2 bg-gray-200"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -272,7 +372,7 @@ export default function TourDetail() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Media Tour Summary
               </h2>
-              
+
               <div className="space-y-4">
                 {!hasStops ? (
                   <div className="text-center py-8 text-gray-500">
@@ -281,52 +381,103 @@ export default function TourDetail() {
                     <p className="text-sm">This tour doesn't have detailed audio or video stops yet.</p>
                   </div>
                 ) : (
-                  tourStops.map((stop, index) => (
-                  <Card 
-                    key={stop.id} 
-                    className={`cursor-pointer transition-all hover:shadow-md ${
-                      currentlyPlaying === index ? 'ring-2 ring-walkable-cyan' : ''
-                    }`}
-                    onClick={() => playStop(stop, index)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 rounded-full bg-walkable-cyan text-white flex items-center justify-center text-sm font-medium">
-                            {currentlyPlaying === index ? (
-                              <Pause className="h-4 w-4" />
-                            ) : (
-                              (stop.mediaType === 'video' || stop.videoFileUrl) ? (
-                                <Video className="h-4 w-4" />
-                              ) : (
-                                <Play className="h-4 w-4" />
-                              )
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <span className="text-xs font-medium text-walkable-cyan">
-                              {index + 1}
-                            </span>
-                            <h3 className="text-sm font-medium text-gray-900 truncate">
-                              {stop.title}
-                            </h3>
-                          </div>
-                          <p className="text-sm text-gray-600 line-clamp-2">
-                            {stop.description}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-gray-500">
-                              {(stop.mediaType === 'video' || stop.videoFileUrl) ? '🎥 Video' : '🎵 Audio'}
-                            </span>
-                          </div>
-                        </div>
+                  tourStops.map((stop, index) => {
+                    const isCompleted = completedStopIds.has(stop.id);
+                    const isNextIncomplete = index === nextIncompleteIndex;
+                    return (
+                      <div
+                        key={stop.id}
+                        ref={isNextIncomplete ? nextStopRef : undefined}
+                      >
+                        <Card
+                          className={`cursor-pointer transition-all hover:shadow-md ${
+                            currentlyPlaying === index ? 'ring-2 ring-walkable-cyan' : ''
+                          } ${isNextIncomplete && !allComplete ? 'ring-2 ring-amber-400 bg-amber-50/50' : ''} ${
+                            isCompleted ? 'bg-green-50/50 border-green-200' : ''
+                          }`}
+                          onClick={() => playStop(stop, index)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start space-x-3">
+                              <div className="flex-shrink-0">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                                  isCompleted
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-walkable-cyan text-white'
+                                }`}>
+                                  {isCompleted ? (
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  ) : currentlyPlaying === index ? (
+                                    <Pause className="h-4 w-4" />
+                                  ) : (
+                                    (stop.mediaType === 'video' || stop.videoFileUrl) ? (
+                                      <Video className="h-4 w-4" />
+                                    ) : (
+                                      <Play className="h-4 w-4" />
+                                    )
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <span className={`text-xs font-medium ${isCompleted ? 'text-green-600' : 'text-walkable-cyan'}`}>
+                                    {index + 1}
+                                  </span>
+                                  <h3 className="text-sm font-medium text-gray-900 truncate">
+                                    {stop.title}
+                                  </h3>
+                                  {isNextIncomplete && !allComplete && (
+                                    <Badge variant="outline" className="text-amber-600 border-amber-400 text-[10px] px-1.5 py-0">
+                                      Next
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 line-clamp-2">
+                                  {stop.description}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-gray-500">
+                                    {(stop.mediaType === 'video' || stop.videoFileUrl) ? '🎥 Video' : '🎵 Audio'}
+                                  </span>
+                                </div>
+
+                                {/* Mark as Visited button */}
+                                {user && (
+                                  <div className="mt-2">
+                                    {isCompleted ? (
+                                      <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Visited
+                                      </span>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 text-xs border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          markStopMutation.mutate(stop.id);
+                                        }}
+                                        disabled={markStopMutation.isPending}
+                                      >
+                                        {markStopMutation.isPending ? (
+                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                        ) : (
+                                          <Circle className="h-3 w-3 mr-1" />
+                                        )}
+                                        Mark as Visited
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
                       </div>
-                    </CardContent>
-                  </Card>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -343,7 +494,39 @@ export default function TourDetail() {
           </div>
         </div>
       </div>
-      
+
+      {/* Completion celebration dialog */}
+      <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
+        <DialogContent className="sm:max-w-md text-center">
+          <div className="py-6">
+            <div className="flex justify-center mb-4">
+              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+                <PartyPopper className="h-10 w-10 text-green-600" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Tour Completed!
+            </h2>
+            <p className="text-gray-600 mb-6">
+              You've visited all {tourStops.length} stops on <span className="font-semibold">{tour.title}</span>. Great exploring!
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button
+                variant="outline"
+                onClick={() => setShowCelebration(false)}
+              >
+                Keep Exploring
+              </Button>
+              <Link href="/discover">
+                <Button className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white">
+                  Discover More Tours
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Footer />
     </div>
   );
