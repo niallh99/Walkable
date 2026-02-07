@@ -70,8 +70,7 @@ export default function Profile() {
     mutationFn: async (updateData: UpdateUserProfile) => {
       const response = await apiRequest('/api/users/profile', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
+        body: updateData,
       });
       return response.json();
     },
@@ -124,15 +123,14 @@ export default function Profile() {
   // Update role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async (role: UserRole) => {
-      const response = await apiRequest('/api/users/role', {
+      await apiRequest('/api/users/role', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
+        body: { role },
       });
-      return response.json();
+      return role;
     },
-    onSuccess: (data) => {
-      updateUser({ role: data.role });
+    onSuccess: (role) => {
+      updateUser({ role });
       toast({
         title: "You're now a Creator!",
         description: "You can now create and share walking tours.",
