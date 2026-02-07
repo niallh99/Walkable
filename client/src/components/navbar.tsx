@@ -62,13 +62,15 @@ export function Navbar() {
                 Discover
               </span>
             </Link>
-            <Link href="/create-tour">
-              <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                location === "/create-tour" ? "border-b-2 border-white" : ""
-              }`}>
-                Create
-              </span>
-            </Link>
+            {user?.role === 'creator' && (
+              <Link href="/create-tour">
+                <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                  location === "/create-tour" ? "border-b-2 border-white" : ""
+                }`}>
+                  Create
+                </span>
+              </Link>
+            )}
             {user && (
               <Link href="/profile">
                 <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
@@ -161,16 +163,18 @@ export function Navbar() {
                   Discover
                 </span>
               </Link>
-              <Link href="/create-tour">
-                <span 
-                  className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
-                    location === "/create-tour" ? "bg-white/10 rounded-md" : ""
-                  }`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Create
-                </span>
-              </Link>
+              {user?.role === 'creator' && (
+                <Link href="/create-tour">
+                  <span
+                    className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
+                      location === "/create-tour" ? "bg-white/10 rounded-md" : ""
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Create
+                  </span>
+                </Link>
+              )}
               {user && (
                 <Link href="/profile">
                   <span 

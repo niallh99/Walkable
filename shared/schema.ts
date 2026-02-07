@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, index, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -26,6 +26,8 @@ export const tours = pgTable("tours", {
   duration: integer("duration"), // in minutes
   distance: text("distance"), // e.g., "2.3 miles"
   coverImageUrl: text("cover_image_url"),
+  price: numeric("price", { precision: 10, scale: 2 }).default('0').notNull(),
+  currency: text("currency").default('EUR').notNull(),
   creatorId: integer("creator_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

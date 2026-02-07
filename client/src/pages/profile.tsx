@@ -13,8 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera } from "lucide-react";
-import { Tour, UpdateUserProfile } from "@shared/schema";
+import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera, Sparkles } from "lucide-react";
+import { Tour, UpdateUserProfile, UserRole } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
 type CompletedTour = {
@@ -115,6 +115,32 @@ export default function Profile() {
       setImagePreview(null);
       toast({
         title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update role mutation
+  const updateRoleMutation = useMutation({
+    mutationFn: async (role: UserRole) => {
+      const response = await apiRequest('/api/users/role', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      updateUser({ role: data.role });
+      toast({
+        title: "You're now a Creator!",
+        description: "You can now create and share walking tours.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update failed",
         description: error.message,
         variant: "destructive",
       });
@@ -293,19 +319,38 @@ export default function Profile() {
                         {user.bio}
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-3">
-                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                        <User className="h-3 w-3 mr-1" />
-                        Creator
-                      </Badge>
-                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                        <MapPin className="h-3 w-3 mr-1" />
-                        Explorer
-                      </Badge>
+                    <div className="flex flex-wrap gap-3 items-center">
+                      {user.role === 'creator' ? (
+                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Creator
+                        </Badge>
+                      ) : (
+                        <>
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            <MapPin className="h-3 w-3 mr-1" />
+                            Explorer
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-blue-400 text-blue-600 hover:bg-blue-50 h-6 text-xs"
+                            onClick={() => updateRoleMutation.mutate('creator')}
+                            disabled={updateRoleMutation.isPending}
+                          >
+                            {updateRoleMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3 w-3 mr-1" />
+                            )}
+                            Become a Creator
+                          </Button>
+                        </>
+                      )}
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-gray-500 mt-3">
                       <span>@{user.username.toLowerCase()}</span>
-                      <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>
+                      <span>Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'recently'}</span>
                     </div>
                   </div>
 

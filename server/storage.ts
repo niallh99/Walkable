@@ -1,6 +1,6 @@
 import { users, tours, tourStops, completedTours, tourProgress, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, gt, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -11,7 +11,7 @@ export interface IStorage {
   updateUserProfile(id: number, updateData: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User>;
   
   // Tour methods
-  getAllTours(): Promise<Tour[]>;
+  getAllTours(pricing?: 'free' | 'paid'): Promise<Tour[]>;
   getTour(id: number): Promise<Tour | undefined>;
   getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[] }) | undefined>;
   createTour(insertTour: InsertTour & { creatorId: number }): Promise<Tour>;
@@ -68,7 +68,13 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getAllTours(): Promise<Tour[]> {
+  async getAllTours(pricing?: 'free' | 'paid'): Promise<Tour[]> {
+    if (pricing === 'free') {
+      return await db.select().from(tours).where(eq(tours.price, '0'));
+    }
+    if (pricing === 'paid') {
+      return await db.select().from(tours).where(gt(tours.price, '0'));
+    }
     return await db.select().from(tours);
   }
 
@@ -158,6 +164,76 @@ export class DatabaseStorage implements IStorage {
       .where(eq(completedTours.userId, userId));
     
     return result;
+  }
+
+  async markStopCompleted(userId: number, tourId: number, stopId: number): Promise<TourProgress> {
+    // Check if already marked
+    const [existing] = await db
+      .select()
+      .from(tourProgress)
+      .where(
+        and(
+          eq(tourProgress.userId, userId),
+          eq(tourProgress.tourId, tourId),
+          eq(tourProgress.stopId, stopId)
+        )
+      );
+    if (existing) return existing;
+
+    const [progress] = await db
+      .insert(tourProgress)
+      .values({ userId, tourId, stopId })
+      .returning();
+
+    // Check if all stops are now completed — auto-complete tour
+    const allStops = await db
+      .select()
+      .from(tourStops)
+      .where(eq(tourStops.tourId, tourId));
+
+    const completedStops = await db
+      .select()
+      .from(tourProgress)
+      .where(
+        and(
+          eq(tourProgress.userId, userId),
+          eq(tourProgress.tourId, tourId)
+        )
+      );
+
+    if (allStops.length > 0 && completedStops.length >= allStops.length) {
+      const alreadyCompleted = await this.isTourCompleted(userId, tourId);
+      if (!alreadyCompleted) {
+        await this.markTourAsCompleted(userId, tourId);
+      }
+    }
+
+    return progress;
+  }
+
+  async getTourProgress(userId: number, tourId: number): Promise<TourProgress[]> {
+    return await db
+      .select()
+      .from(tourProgress)
+      .where(
+        and(
+          eq(tourProgress.userId, userId),
+          eq(tourProgress.tourId, tourId)
+        )
+      );
+  }
+
+  async isTourCompleted(userId: number, tourId: number): Promise<boolean> {
+    const [existing] = await db
+      .select()
+      .from(completedTours)
+      .where(
+        and(
+          eq(completedTours.userId, userId),
+          eq(completedTours.tourId, tourId)
+        )
+      );
+    return !!existing;
   }
 
   async markTourAsCompleted(userId: number, tourId: number): Promise<CompletedTour> {

@@ -378,11 +378,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get tours (public route)
   app.get("/api/tours", async (req, res) => {
     try {
-      const tours = await storage.getAllTours();
+      const { pricing } = req.query;
+      let filter: 'free' | 'paid' | undefined;
+      if (pricing === 'free' || pricing === 'paid') {
+        filter = pricing;
+      }
+      const tours = await storage.getAllTours(filter);
       res.json(tours);
     } catch (error) {
       console.error('Get tours error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Internal server error",
         details: "Failed to fetch tours"
       });
@@ -1126,6 +1131,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Internal server error",
         details: "Failed to update profile"
+      });
+    }
+  });
+
+  // Get user's progress on a tour (GET /api/tours/:id/progress)
+  app.get("/api/tours/:id/progress", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid tour ID"
+        });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "Tour not found"
+        });
+      }
+
+      const progress = await storage.getTourProgress(req.user.id, tourId);
+      const isCompleted = await storage.isTourCompleted(req.user.id, tourId);
+
+      res.json({ tourId, progress, isCompleted });
+    } catch (error) {
+      console.error('Get tour progress error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to fetch tour progress"
+      });
+    }
+  });
+
+  // Mark a stop as completed (POST /api/tours/:id/progress)
+  app.post("/api/tours/:id/progress", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Invalid tour ID"
+        });
+      }
+
+      const { stopId } = req.body;
+      if (!stopId || isNaN(parseInt(stopId))) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Valid stopId is required"
+        });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({
+          error: "Not found",
+          details: "Tour not found"
+        });
+      }
+
+      const stopIdNum = parseInt(stopId);
+      const progress = await storage.markStopCompleted(req.user.id, tourId, stopIdNum);
+      const isCompleted = await storage.isTourCompleted(req.user.id, tourId);
+
+      res.status(201).json({
+        message: "Stop marked as completed",
+        progress,
+        tourCompleted: isCompleted,
+      });
+    } catch (error) {
+      console.error('Mark stop completed error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to mark stop as completed"
       });
     }
   });
