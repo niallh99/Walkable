@@ -1,4 +1,4 @@
-import { users, tours, tourStops, completedTours, tourProgress, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql } from "drizzle-orm";
 
@@ -26,6 +26,12 @@ export interface IStorage {
   // Tour progress methods
   markStopCompleted(userId: number, tourId: number, stopId: number): Promise<TourProgress>;
   getTourProgress(userId: number, tourId: number): Promise<TourProgress[]>;
+
+  // Stripe account methods
+  getStripeAccount(userId: number): Promise<StripeAccount | undefined>;
+  getStripeAccountByStripeId(stripeAccountId: string): Promise<StripeAccount | undefined>;
+  createStripeAccount(userId: number, stripeAccountId: string): Promise<StripeAccount>;
+  updateStripeAccountOnboarding(userId: number, complete: boolean): Promise<StripeAccount>;
 
   // Completed tours methods
   getCompletedToursByUser(userId: number): Promise<(CompletedTour & { tour: Tour })[]>;
@@ -158,6 +164,33 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tours.id, id))
       .returning();
     return updated;
+  }
+
+  async getStripeAccount(userId: number): Promise<StripeAccount | undefined> {
+    const [account] = await db.select().from(stripeAccounts).where(eq(stripeAccounts.userId, userId));
+    return account || undefined;
+  }
+
+  async getStripeAccountByStripeId(stripeAccountId: string): Promise<StripeAccount | undefined> {
+    const [account] = await db.select().from(stripeAccounts).where(eq(stripeAccounts.stripeAccountId, stripeAccountId));
+    return account || undefined;
+  }
+
+  async createStripeAccount(userId: number, stripeAccountId: string): Promise<StripeAccount> {
+    const [account] = await db
+      .insert(stripeAccounts)
+      .values({ userId, stripeAccountId })
+      .returning();
+    return account;
+  }
+
+  async updateStripeAccountOnboarding(userId: number, complete: boolean): Promise<StripeAccount> {
+    const [account] = await db
+      .update(stripeAccounts)
+      .set({ onboardingComplete: complete, updatedAt: new Date() })
+      .where(eq(stripeAccounts.userId, userId))
+      .returning();
+    return account;
   }
 
   async getCompletedToursByUser(userId: number): Promise<(CompletedTour & { tour: Tour })[]> {

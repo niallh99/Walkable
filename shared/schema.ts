@@ -72,6 +72,17 @@ export const completedTours = pgTable("completed_tours", {
   userIdIdx: index("completed_tours_user_id_idx").on(table.userId),
 }));
 
+export const stripeAccounts = pgTable("stripe_accounts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  stripeAccountId: text("stripe_account_id").notNull().unique(),
+  onboardingComplete: boolean("onboarding_complete").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("stripe_accounts_user_id_idx").on(table.userId),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -120,4 +131,5 @@ export type TourStop = typeof tourStops.$inferSelect;
 export type InsertTourStop = z.infer<typeof insertTourStopSchema>;
 export type CompletedTour = typeof completedTours.$inferSelect;
 export type TourProgress = typeof tourProgress.$inferSelect;
+export type StripeAccount = typeof stripeAccounts.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;

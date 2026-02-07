@@ -5,6 +5,16 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, Clock, Star } from 'lucide-react';
 import { Link } from 'wouter';
 
+function formatTourPrice(tour: Tour): string {
+  if (!tour.price || parseFloat(tour.price) === 0) return 'Free';
+  const symbol = tour.currency === 'GBP' ? '£' : tour.currency === 'USD' ? '$' : '€';
+  return `${symbol}${parseFloat(tour.price).toFixed(2)}`;
+}
+
+function isTourFree(tour: Tour): boolean {
+  return !tour.price || parseFloat(tour.price) === 0;
+}
+
 export function FeaturedTours() {
   const { data: allTours = [], isLoading } = useQuery<Tour[]>({
     queryKey: ['/api/tours'],
@@ -104,9 +114,15 @@ export function FeaturedTours() {
                       />
                     )}
                   </div>
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 flex gap-1.5">
                     <Badge className={getCategoryColor(tour.category)}>
                       {tour.category}
+                    </Badge>
+                    <Badge className={isTourFree(tour)
+                      ? 'bg-green-500 text-white hover:bg-green-500'
+                      : 'bg-amber-500 text-white hover:bg-amber-500'
+                    }>
+                      {formatTourPrice(tour)}
                     </Badge>
                   </div>
                 </div>

@@ -11,7 +11,7 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
 import { useAuth } from "@/components/auth-context";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper } from "lucide-react";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Tour, TourStop } from "@shared/schema";
@@ -23,6 +23,16 @@ interface TourWithStops extends Tour {
 interface StopProgress {
   stopId: number;
   completedAt: string;
+}
+
+function isTourFree(tour: Tour): boolean {
+  return !tour.price || parseFloat(tour.price) === 0;
+}
+
+function formatTourPrice(tour: Tour): string {
+  if (isTourFree(tour)) return 'Free';
+  const symbol = tour.currency === 'GBP' ? '£' : tour.currency === 'USD' ? '$' : '€';
+  return `${symbol}${parseFloat(tour.price).toFixed(2)}`;
 }
 
 export default function TourDetail() {
@@ -274,6 +284,8 @@ export default function TourDetail() {
   const progressPercent = hasStops ? Math.round((completedCount / tourStops.length) * 100) : 0;
   const allComplete = hasStops && completedCount === tourStops.length;
 
+  const isPaidTour = !isTourFree(tour);
+
   // Find first incomplete stop index for "resume" highlighting
   const nextIncompleteIndex = tourStops.findIndex((s) => !completedStopIds.has(s.id));
 
@@ -315,9 +327,17 @@ export default function TourDetail() {
             <div className="flex flex-col space-y-4">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{tour.title}</h1>
-                <Badge className={getCategoryColor(tour.category)}>
-                  {tour.category}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className={getCategoryColor(tour.category)}>
+                    {tour.category}
+                  </Badge>
+                  <Badge className={isTourFree(tour)
+                    ? 'bg-green-500 text-white hover:bg-green-500'
+                    : 'bg-amber-500 text-white hover:bg-amber-500'
+                  }>
+                    {formatTourPrice(tour)}
+                  </Badge>
+                </div>
               </div>
 
               <p className="text-gray-600 text-lg max-w-3xl">
@@ -364,6 +384,19 @@ export default function TourDetail() {
           </div>
         </div>
 
+        {/* Coming Soon banner for paid tours */}
+        {isPaidTour && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+            <div className="max-w-7xl mx-auto flex items-center gap-3">
+              <Lock className="h-5 w-5 text-amber-600 flex-shrink-0" />
+              <div>
+                <span className="text-amber-800 font-medium">This is a paid tour ({formatTourPrice(tour)})</span>
+                <span className="text-amber-600 ml-2">- Purchasing is coming soon. You can preview the tour stops below.</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
         <div className="flex h-[calc(100vh-200px)]">
           {/* Left Sidebar - Tour Stops */}
@@ -395,7 +428,16 @@ export default function TourDetail() {
                           } ${isNextIncomplete && !allComplete ? 'ring-2 ring-amber-400 bg-amber-50/50' : ''} ${
                             isCompleted ? 'bg-green-50/50 border-green-200' : ''
                           }`}
-                          onClick={() => playStop(stop, index)}
+                          onClick={() => {
+                            if (isPaidTour) {
+                              toast({
+                                title: "Paid tour",
+                                description: "Purchasing tours is coming soon!",
+                              });
+                              return;
+                            }
+                            playStop(stop, index);
+                          }}
                         >
                           <CardContent className="p-4">
                             <div className="flex items-start space-x-3">
@@ -442,8 +484,8 @@ export default function TourDetail() {
                                   </span>
                                 </div>
 
-                                {/* Mark as Visited button */}
-                                {user && (
+                                {/* Mark as Visited button — hidden for paid tours */}
+                                {user && !isPaidTour && (
                                   <div className="mt-2">
                                     {isCompleted ? (
                                       <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">

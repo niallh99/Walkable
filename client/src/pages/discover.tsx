@@ -18,11 +18,24 @@ interface UserLocation {
   address?: string;
 }
 
+type PriceFilter = 'all' | 'free' | 'paid';
+
+function isTourFree(tour: Tour): boolean {
+  return !tour.price || parseFloat(tour.price) === 0;
+}
+
+function formatTourPrice(tour: Tour): string {
+  if (isTourFree(tour)) return 'Free';
+  const symbol = tour.currency === 'GBP' ? '£' : tour.currency === 'USD' ? '$' : '€';
+  return `${symbol}${parseFloat(tour.price).toFixed(2)}`;
+}
+
 export default function Discover() {
   const [userLocation, setUserLocation] = useState<UserLocation | undefined>();
   const [searchLocation, setSearchLocation] = useState<UserLocation | undefined>();
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -48,8 +61,13 @@ export default function Discover() {
     enabled: !!activeLocation,
   });
 
-  // Display tours: nearby tours if we have location, otherwise all tours
-  const displayTours = activeLocation ? nearbyTours : allTours;
+  // Display tours: nearby tours if we have location, otherwise all tours, then filter by price
+  const baseTours = activeLocation ? nearbyTours : allTours;
+  const displayTours = baseTours.filter((tour) => {
+    if (priceFilter === 'free') return isTourFree(tour);
+    if (priceFilter === 'paid') return !isTourFree(tour);
+    return true;
+  });
 
   const handleLocationRequest = () => {
     if (isGettingLocation) return;
@@ -280,7 +298,24 @@ export default function Discover() {
                     placeholder="Search for a location..."
                   />
                 </div>
-                
+
+                {/* Price filter */}
+                <div className="flex items-center border rounded-lg overflow-hidden">
+                  {(['all', 'free', 'paid'] as PriceFilter[]).map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setPriceFilter(filter)}
+                      className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                        priceFilter === filter
+                          ? 'bg-walkable-cyan text-white'
+                          : 'bg-white text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {filter === 'all' ? 'All' : filter === 'free' ? 'Free' : 'Paid'}
+                    </button>
+                  ))}
+                </div>
+
                 {activeLocation && (
                   <Button
                     variant="outline"
@@ -439,9 +474,17 @@ export default function Discover() {
                       {tour.category}
                     </Badge>
                   </div>
-                  <div className="absolute top-3 right-3 bg-black/70 text-white px-2 py-1 rounded-md text-sm flex items-center">
-                    <span className="text-yellow-400 mr-1">★</span>
-                    4.5
+                  <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end">
+                    <div className="bg-black/70 text-white px-2 py-1 rounded-md text-sm flex items-center">
+                      <span className="text-yellow-400 mr-1">★</span>
+                      4.5
+                    </div>
+                    <Badge className={isTourFree(tour)
+                      ? 'bg-green-500 text-white hover:bg-green-500'
+                      : 'bg-amber-500 text-white hover:bg-amber-500'
+                    }>
+                      {formatTourPrice(tour)}
+                    </Badge>
                   </div>
                 </div>
                 <CardContent className="p-4">

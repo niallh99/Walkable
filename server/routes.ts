@@ -12,6 +12,7 @@ import fs from "fs";
 import rateLimit from "express-rate-limit";
 import xss from "xss";
 import { config } from "./config";
+import { getStripe, isStripeConfigured } from "./stripe";
 
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = "7d";
@@ -224,6 +225,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Apply global rate limiter to all API routes
   app.use('/api', globalLimiter);
+
+  // Stripe webhook (must use raw body for signature verification)
+  app.post("/api/webhooks/stripe", express.raw({ type: 'application/json' }), async (req, res) => {
+    if (!isStripeConfigured() || !config.STRIPE_WEBHOOK_SECRET) {
+      return res.status(503).json({ error: "Stripe is not configured" });
+    }
+
+    const sig = req.headers['stripe-signature'] as string;
+    if (!sig) {
+      return res.status(400).json({ error: "Missing stripe-signature header" });
+    }
+
+    try {
+      const stripe = getStripe();
+      const event = stripe.webhooks.constructEvent(req.body, sig, config.STRIPE_WEBHOOK_SECRET);
+
+      switch (event.type) {
+        case 'account.updated': {
+          const account = event.data.object as any;
+          if (account.charges_enabled && account.details_submitted) {
+            const existing = await storage.getStripeAccountByStripeId(account.id);
+            if (existing) {
+              await storage.updateStripeAccountOnboarding(existing.userId, true);
+            }
+          }
+          break;
+        }
+        default:
+          console.log(`Unhandled Stripe event type: ${event.type}`);
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error('Stripe webhook error:', error.message);
+      res.status(400).json({ error: `Webhook error: ${error.message}` });
+    }
+  });
 
   // Health check endpoint
   app.get("/api/health", async (req, res) => {
@@ -1332,6 +1370,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: "Internal server error",
         details: "Failed to mark tour as completed"
+      });
+    }
+  });
+
+  // Start Stripe Connect onboarding (POST /api/stripe/connect)
+  app.post("/api/stripe/connect", authenticateToken, requireCreator, async (req: any, res) => {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: "Stripe is not configured" });
+    }
+
+    try {
+      const stripe = getStripe();
+      const userId = req.user.id;
+
+      // Check if user already has a Stripe account
+      let stripeAccount = await storage.getStripeAccount(userId);
+
+      if (!stripeAccount) {
+        // Create a new Stripe Connect Express account
+        const account = await stripe.accounts.create({
+          type: 'express',
+          email: req.user.email,
+          metadata: { walkable_user_id: String(userId) },
+        });
+        stripeAccount = await storage.createStripeAccount(userId, account.id);
+      }
+
+      // Create an account link for onboarding
+      const accountLink = await stripe.accountLinks.create({
+        account: stripeAccount.stripeAccountId,
+        refresh_url: `${req.headers.origin || req.protocol + '://' + req.get('host')}/creator/stripe-refresh`,
+        return_url: `${req.headers.origin || req.protocol + '://' + req.get('host')}/creator/stripe-return`,
+        type: 'account_onboarding',
+      });
+
+      res.json({
+        url: accountLink.url,
+        stripeAccountId: stripeAccount.stripeAccountId,
+      });
+    } catch (error: any) {
+      console.error('Stripe Connect error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to start Stripe Connect onboarding"
+      });
+    }
+  });
+
+  // Check Stripe Connect onboarding status (GET /api/stripe/connect/status)
+  app.get("/api/stripe/connect/status", authenticateToken, async (req: any, res) => {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: "Stripe is not configured" });
+    }
+
+    try {
+      const stripeAccount = await storage.getStripeAccount(req.user.id);
+
+      if (!stripeAccount) {
+        return res.json({ connected: false, onboardingComplete: false });
+      }
+
+      // Fetch live status from Stripe
+      const stripe = getStripe();
+      const account = await stripe.accounts.retrieve(stripeAccount.stripeAccountId);
+
+      const onboardingComplete = !!(account.charges_enabled && account.details_submitted);
+
+      // Update local record if status changed
+      if (onboardingComplete !== stripeAccount.onboardingComplete) {
+        await storage.updateStripeAccountOnboarding(req.user.id, onboardingComplete);
+      }
+
+      res.json({
+        connected: true,
+        stripeAccountId: stripeAccount.stripeAccountId,
+        onboardingComplete,
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+      });
+    } catch (error: any) {
+      console.error('Stripe Connect status error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to check Stripe Connect status"
       });
     }
   });

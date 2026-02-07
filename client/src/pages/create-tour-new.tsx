@@ -21,6 +21,8 @@ interface TourDetails {
   title: string;
   description: string;
   category: string;
+  price: string;
+  currency: string;
   coverImage: File | null;
   coverImagePreview: string;
   existingCoverImageUrl?: string;
@@ -96,6 +98,8 @@ export default function CreateTourNew() {
     title: '',
     description: '',
     category: '',
+    price: '0',
+    currency: 'EUR',
     coverImage: null,
     coverImagePreview: '',
   });
@@ -139,6 +143,8 @@ export default function CreateTourNew() {
         title: tour.title || '',
         description: tour.description || '',
         category: tour.category || '',
+        price: tour.price?.toString() || '0',
+        currency: tour.currency || 'EUR',
         coverImage: null,
         coverImagePreview: tour.coverImageUrl || '',
         existingCoverImageUrl: tour.coverImageUrl || '',
@@ -614,6 +620,33 @@ export default function CreateTourNew() {
         </Select>
       </div>
 
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={tourDetails.price}
+              onChange={(e) => setTourDetails(prev => ({ ...prev, price: e.target.value }))}
+            />
+            <p className="text-xs text-gray-500 mt-1">Set to 0 for a free tour</p>
+          </div>
+          <Select value={tourDetails.currency} onValueChange={(value) => setTourDetails(prev => ({ ...prev, currency: value }))}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="EUR">EUR</SelectItem>
+              <SelectItem value="USD">USD</SelectItem>
+              <SelectItem value="GBP">GBP</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <Button
         onClick={nextStep}
         disabled={!validateStep1()}
@@ -935,6 +968,8 @@ export default function CreateTourNew() {
         title: tourDetails.title,
         description: tourDetails.description,
         category: tourDetails.category,
+        price: tourDetails.price || '0',
+        currency: tourDetails.currency || 'EUR',
         latitude: stopsWithMedia[0]?.latitude || '0',
         longitude: stopsWithMedia[0]?.longitude || '0',
         audioFileUrl: stopsWithMedia[0]?.audioFileUrl || '',
@@ -978,6 +1013,12 @@ export default function CreateTourNew() {
           </div>
           <div>
             <span className="font-medium">Category:</span> {tourDetails.category}
+          </div>
+          <div>
+            <span className="font-medium">Price:</span>{' '}
+            {parseFloat(tourDetails.price) > 0
+              ? `${tourDetails.currency} ${parseFloat(tourDetails.price).toFixed(2)}`
+              : 'Free'}
           </div>
           {tourDetails.coverImagePreview && (
             <div>
