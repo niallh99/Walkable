@@ -1,4 +1,4 @@
-import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql } from "drizzle-orm";
 
@@ -13,7 +13,7 @@ export interface IStorage {
   // Tour methods
   getAllTours(pricing?: 'free' | 'paid'): Promise<Tour[]>;
   getTour(id: number): Promise<Tour | undefined>;
-  getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[] }) | undefined>;
+  getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[]; collaborators: (Collaborator & { user: { id: number; username: string; profileImage: string | null } })[] }) | undefined>;
   createTour(insertTour: InsertTour & { creatorId: number }): Promise<Tour>;
   createTourWithStops(tourData: InsertTour & { creatorId: number }, stops: InsertTourStop[]): Promise<Tour>;
   updateTour(id: number, tourData: InsertTour & { creatorId: number }): Promise<Tour>;
@@ -47,6 +47,14 @@ export interface IStorage {
   createTip(fromUserId: number, toUserId: number, tourId: number, amount: string, currency: string, stripePaymentId: string): Promise<Tip>;
   getTipByPaymentId(stripePaymentId: string): Promise<Tip | undefined>;
   getTotalTipsForCreator(creatorId: number): Promise<{ count: number; totalAmount: string }>;
+
+  // Collaborator methods
+  createCollaborator(tourId: number, invitedUserId: number, invitedByUserId: number, role: string): Promise<Collaborator>;
+  getCollaborator(tourId: number, userId: number): Promise<Collaborator | undefined>;
+  getCollaboratorById(id: number): Promise<Collaborator | undefined>;
+  getCollaboratorsByTour(tourId: number): Promise<(Collaborator & { user: { id: number; username: string; profileImage: string | null } })[]>;
+  getPendingInvitations(userId: number): Promise<(Collaborator & { tour: Tour; invitedBy: { id: number; username: string } })[]>;
+  updateCollaboratorStatus(id: number, status: string): Promise<Collaborator>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -100,7 +108,7 @@ export class DatabaseStorage implements IStorage {
     return tour || undefined;
   }
 
-  async getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[] }) | undefined> {
+  async getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[]; collaborators: (Collaborator & { user: { id: number; username: string; profileImage: string | null } })[] }) | undefined> {
     const [tour] = await db.select().from(tours).where(eq(tours.id, id));
     if (!tour) return undefined;
 
@@ -110,7 +118,9 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tourStops.tourId, id))
       .orderBy(tourStops.order);
 
-    return { ...tour, stops };
+    const collabs = await this.getCollaboratorsByTour(id);
+
+    return { ...tour, stops, collaborators: collabs };
   }
 
   async createTour(tourData: InsertTour & { creatorId: number }): Promise<Tour> {
@@ -394,6 +404,90 @@ export class DatabaseStorage implements IStorage {
       .from(tips)
       .where(eq(tips.toUserId, creatorId));
     return result || { count: 0, totalAmount: '0' };
+  }
+
+  async createCollaborator(tourId: number, invitedUserId: number, invitedByUserId: number, role: string): Promise<Collaborator> {
+    const [collab] = await db
+      .insert(collaborators)
+      .values({ tourId, invitedUserId, invitedByUserId, role })
+      .returning();
+    return collab;
+  }
+
+  async getCollaborator(tourId: number, userId: number): Promise<Collaborator | undefined> {
+    const [collab] = await db
+      .select()
+      .from(collaborators)
+      .where(and(eq(collaborators.tourId, tourId), eq(collaborators.invitedUserId, userId)));
+    return collab || undefined;
+  }
+
+  async getCollaboratorById(id: number): Promise<Collaborator | undefined> {
+    const [collab] = await db
+      .select()
+      .from(collaborators)
+      .where(eq(collaborators.id, id));
+    return collab || undefined;
+  }
+
+  async getCollaboratorsByTour(tourId: number): Promise<(Collaborator & { user: { id: number; username: string; profileImage: string | null } })[]> {
+    const results = await db
+      .select({
+        id: collaborators.id,
+        tourId: collaborators.tourId,
+        invitedUserId: collaborators.invitedUserId,
+        invitedByUserId: collaborators.invitedByUserId,
+        role: collaborators.role,
+        status: collaborators.status,
+        invitedAt: collaborators.invitedAt,
+        respondedAt: collaborators.respondedAt,
+        user: {
+          id: users.id,
+          username: users.username,
+          profileImage: users.profileImage,
+        },
+      })
+      .from(collaborators)
+      .innerJoin(users, eq(collaborators.invitedUserId, users.id))
+      .where(eq(collaborators.tourId, tourId));
+    return results;
+  }
+
+  async getPendingInvitations(userId: number): Promise<(Collaborator & { tour: Tour; invitedBy: { id: number; username: string } })[]> {
+    const invitedByUser = db.$with('invited_by_user').as(
+      db.select({ id: users.id, username: users.username }).from(users)
+    );
+
+    const results = await db
+      .select({
+        id: collaborators.id,
+        tourId: collaborators.tourId,
+        invitedUserId: collaborators.invitedUserId,
+        invitedByUserId: collaborators.invitedByUserId,
+        role: collaborators.role,
+        status: collaborators.status,
+        invitedAt: collaborators.invitedAt,
+        respondedAt: collaborators.respondedAt,
+        tour: tours,
+        invitedBy: {
+          id: users.id,
+          username: users.username,
+        },
+      })
+      .from(collaborators)
+      .innerJoin(tours, eq(collaborators.tourId, tours.id))
+      .innerJoin(users, eq(collaborators.invitedByUserId, users.id))
+      .where(and(eq(collaborators.invitedUserId, userId), eq(collaborators.status, 'pending')));
+    return results;
+  }
+
+  async updateCollaboratorStatus(id: number, status: string): Promise<Collaborator> {
+    const [collab] = await db
+      .update(collaborators)
+      .set({ status, respondedAt: new Date() })
+      .where(eq(collaborators.id, id))
+      .returning();
+    return collab;
   }
 }
 

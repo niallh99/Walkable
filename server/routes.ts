@@ -678,10 +678,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (existingTour.creatorId !== req.user.id) {
-        return res.status(403).json({
-          error: "Forbidden",
-          details: "You can only edit your own tours"
-        });
+        // Check if user is an accepted editor collaborator
+        const collab = await storage.getCollaborator(tourId, req.user.id);
+        if (!collab || collab.status !== 'accepted' || collab.role !== 'editor') {
+          return res.status(403).json({
+            error: "Forbidden",
+            details: "You can only edit your own tours or tours you collaborate on as an editor"
+          });
+        }
       }
 
       // Sanitize tour text fields
@@ -1613,6 +1617,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Internal server error",
         details: "Failed to check tour access"
       });
+    }
+  });
+
+  // Invite a collaborator to a tour (POST /api/tours/:id/collaborators/invite)
+  app.post("/api/tours/:id/collaborators/invite", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const { username, role } = req.body;
+      if (!username) {
+        return res.status(400).json({ error: "Bad request", details: "Username is required" });
+      }
+      if (!role || !['editor', 'viewer'].includes(role)) {
+        return res.status(400).json({ error: "Bad request", details: "Role must be 'editor' or 'viewer'" });
+      }
+
+      // Only tour owner can invite
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+      if (tour.creatorId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "Only the tour owner can invite collaborators" });
+      }
+
+      // Find invited user by username
+      const invitedUser = await storage.getUserByUsername(username);
+      if (!invitedUser) {
+        return res.status(404).json({ error: "Not found", details: "User not found" });
+      }
+
+      // Can't invite yourself
+      if (invitedUser.id === req.user.id) {
+        return res.status(400).json({ error: "Bad request", details: "You cannot invite yourself" });
+      }
+
+      // Check for existing invitation
+      const existing = await storage.getCollaborator(tourId, invitedUser.id);
+      if (existing) {
+        return res.status(409).json({ error: "Conflict", details: "This user already has an invitation for this tour" });
+      }
+
+      const collaborator = await storage.createCollaborator(tourId, invitedUser.id, req.user.id, role);
+      res.status(201).json({
+        message: "Invitation sent",
+        collaborator,
+      });
+    } catch (error) {
+      console.error('Invite collaborator error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to invite collaborator" });
+    }
+  });
+
+  // Get collaborators for a tour (GET /api/tours/:id/collaborators)
+  app.get("/api/tours/:id/collaborators", async (req, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      const collabs = await storage.getCollaboratorsByTour(tourId);
+      res.json(collabs);
+    } catch (error) {
+      console.error('Get collaborators error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch collaborators" });
+    }
+  });
+
+  // Get pending invitations for current user (GET /api/users/invitations)
+  app.get("/api/users/invitations", authenticateToken, async (req: any, res) => {
+    try {
+      const invitations = await storage.getPendingInvitations(req.user.id);
+      res.json(invitations);
+    } catch (error) {
+      console.error('Get invitations error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch invitations" });
+    }
+  });
+
+  // Accept an invitation (PUT /api/invitations/:id/accept)
+  app.put("/api/invitations/:id/accept", authenticateToken, async (req: any, res) => {
+    try {
+      const invitationId = parseInt(req.params.id);
+      if (isNaN(invitationId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid invitation ID" });
+      }
+
+      const invitation = await storage.getCollaboratorById(invitationId);
+      if (!invitation) {
+        return res.status(404).json({ error: "Not found", details: "Invitation not found" });
+      }
+
+      if (invitation.invitedUserId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "This invitation is not for you" });
+      }
+
+      if (invitation.status !== 'pending') {
+        return res.status(400).json({ error: "Bad request", details: "This invitation has already been responded to" });
+      }
+
+      const updated = await storage.updateCollaboratorStatus(invitationId, 'accepted');
+      res.json({ message: "Invitation accepted", collaborator: updated });
+    } catch (error) {
+      console.error('Accept invitation error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to accept invitation" });
+    }
+  });
+
+  // Decline an invitation (PUT /api/invitations/:id/decline)
+  app.put("/api/invitations/:id/decline", authenticateToken, async (req: any, res) => {
+    try {
+      const invitationId = parseInt(req.params.id);
+      if (isNaN(invitationId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid invitation ID" });
+      }
+
+      const invitation = await storage.getCollaboratorById(invitationId);
+      if (!invitation) {
+        return res.status(404).json({ error: "Not found", details: "Invitation not found" });
+      }
+
+      if (invitation.invitedUserId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "This invitation is not for you" });
+      }
+
+      if (invitation.status !== 'pending') {
+        return res.status(400).json({ error: "Bad request", details: "This invitation has already been responded to" });
+      }
+
+      const updated = await storage.updateCollaboratorStatus(invitationId, 'declined');
+      res.json({ message: "Invitation declined", collaborator: updated });
+    } catch (error) {
+      console.error('Decline invitation error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to decline invitation" });
     }
   });
 

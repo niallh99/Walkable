@@ -112,6 +112,21 @@ export const tips = pgTable("tips", {
   tourIdx: index("tips_tour_id_idx").on(table.tourId),
 }));
 
+export const collaborators = pgTable("collaborators", {
+  id: serial("id").primaryKey(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  invitedUserId: integer("invited_user_id").references(() => users.id).notNull(),
+  invitedByUserId: integer("invited_by_user_id").references(() => users.id).notNull(),
+  role: text("role").notNull(), // 'editor' | 'viewer'
+  status: text("status").default('pending').notNull(), // 'pending' | 'accepted' | 'declined'
+  invitedAt: timestamp("invited_at").defaultNow().notNull(),
+  respondedAt: timestamp("responded_at"),
+}, (table) => ({
+  tourIdx: index("collaborators_tour_id_idx").on(table.tourId),
+  invitedUserIdx: index("collaborators_invited_user_id_idx").on(table.invitedUserId),
+  uniqueCollab: index("collaborators_unique_idx").on(table.tourId, table.invitedUserId),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -163,4 +178,5 @@ export type TourProgress = typeof tourProgress.$inferSelect;
 export type StripeAccount = typeof stripeAccounts.$inferSelect;
 export type Purchase = typeof purchases.$inferSelect;
 export type Tip = typeof tips.$inferSelect;
+export type Collaborator = typeof collaborators.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
