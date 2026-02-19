@@ -11,7 +11,8 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
 import { useAuth } from "@/components/auth-context";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock } from "lucide-react";
+import { WalkingMode } from "@/components/walking-mode";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock, Footprints } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Tour, TourStop } from "@shared/schema";
@@ -43,6 +44,7 @@ export default function TourDetail() {
   const [currentVideo, setCurrentVideo] = useState<HTMLVideoElement | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [isWalkingMode, setIsWalkingMode] = useState(false);
   const nextStopRef = useRef<HTMLDivElement>(null);
 
   const { data: tour, isLoading } = useQuery<TourWithStops>({
@@ -359,6 +361,19 @@ export default function TourDetail() {
                 </div>
               </div>
 
+              {/* Start Walking button — for free tours with stops */}
+              {user && hasStops && !isPaidTour && (
+                <div>
+                  <Button
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => setIsWalkingMode(true)}
+                  >
+                    <Footprints className="h-4 w-4 mr-2" />
+                    Start Walking
+                  </Button>
+                </div>
+              )}
+
               {/* Progress bar — only for logged-in users with stops */}
               {user && hasStops && (
                 <div className="max-w-md">
@@ -568,6 +583,15 @@ export default function TourDetail() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Walking mode overlay */}
+      {isWalkingMode && hasStops && (
+        <WalkingMode
+          stops={tourStops}
+          tourTitle={tour.title}
+          onClose={() => setIsWalkingMode(false)}
+        />
+      )}
 
       <Footer />
     </div>

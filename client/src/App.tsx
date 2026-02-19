@@ -12,6 +12,7 @@ import Discover from "@/pages/discover";
 import CreateTourNew from "@/pages/create-tour-new";
 import Profile from "@/pages/profile";
 import TourDetail from "@/pages/tour-detail";
+import StripeConnectReturn from "@/pages/stripe-connect-return";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/create-tour" component={CreateTourNew} />
       <Route path="/profile" component={Profile} />
       <Route path="/tour/:id" component={TourDetail} />
+      <Route path="/stripe-connect/return" component={StripeConnectReturn} />
       <Route component={NotFound} />
     </Switch>
   );

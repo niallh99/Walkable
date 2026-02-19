@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera, Sparkles } from "lucide-react";
+import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera, Sparkles, CreditCard, CheckCircle, ExternalLink } from "lucide-react";
 import { Tour, UpdateUserProfile, UserRole } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -139,6 +139,40 @@ export default function Profile() {
     onError: (error: Error) => {
       toast({
         title: "Update failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Stripe Connect status query (only for creators)
+  const { data: stripeStatus, isLoading: isLoadingStripeStatus } = useQuery<{
+    connected: boolean;
+    accountId?: string;
+    onboardingComplete?: boolean;
+  }>({
+    queryKey: ['/api/stripe/connect/status'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/stripe/connect/status');
+      return response.json();
+    },
+    enabled: !!user && user.role === 'creator',
+  });
+
+  // Stripe Connect onboarding mutation
+  const stripeConnectMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('/api/stripe/connect', {
+        method: 'POST',
+      });
+      return response.json();
+    },
+    onSuccess: (data: { url: string }) => {
+      window.location.href = data.url;
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Stripe setup failed",
         description: error.message,
         variant: "destructive",
       });
@@ -319,10 +353,33 @@ export default function Profile() {
                     )}
                     <div className="flex flex-wrap gap-3 items-center">
                       {user.role === 'creator' ? (
-                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                          <Sparkles className="h-3 w-3 mr-1" />
-                          Creator
-                        </Badge>
+                        <>
+                          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Creator
+                          </Badge>
+                          {!isLoadingStripeStatus && stripeStatus?.connected ? (
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Payments Active
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-green-500 text-green-700 hover:bg-green-50 h-6 text-xs"
+                              onClick={() => stripeConnectMutation.mutate()}
+                              disabled={stripeConnectMutation.isPending || isLoadingStripeStatus}
+                            >
+                              {stripeConnectMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <CreditCard className="h-3 w-3 mr-1" />
+                              )}
+                              Set Up Payments
+                            </Button>
+                          )}
+                        </>
                       ) : (
                         <>
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
