@@ -1,18 +1,20 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
 import { useAuth } from "@/components/auth-context";
 import { WalkingMode } from "@/components/walking-mode";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock, Footprints } from "lucide-react";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock, Footprints, Heart, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Tour, TourStop } from "@shared/schema";
@@ -45,7 +47,10 @@ export default function TourDetail() {
   const [currentlyPlaying, setCurrentlyPlaying] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [isWalkingMode, setIsWalkingMode] = useState(false);
+  const [tipOpen, setTipOpen] = useState(false);
+  const [customTipAmount, setCustomTipAmount] = useState('');
   const nextStopRef = useRef<HTMLDivElement>(null);
+  const searchString = useSearch();
 
   const { data: tour, isLoading } = useQuery<TourWithStops>({
     queryKey: [`/api/tours/${id}/details`],
@@ -102,6 +107,65 @@ export default function TourDetail() {
       });
     },
   });
+
+  // Tip mutation
+  const tipMutation = useMutation({
+    mutationFn: async (amount: number) => {
+      const response = await apiRequest(`/api/tours/${id}/tip`, {
+        method: 'POST',
+        body: { amount },
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      setTipOpen(false);
+      setCustomTipAmount('');
+      toast({
+        title: "Tip sent!",
+        description: "Thank you for supporting this creator.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Tip failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Purchase mutation
+  const purchaseMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(`/api/tours/${id}/purchase`, {
+        method: 'POST',
+      });
+      return response.json();
+    },
+    onSuccess: (data: { checkoutUrl: string }) => {
+      window.location.href = data.checkoutUrl;
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Purchase failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle ?purchase=success in URL
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    if (params.get('purchase') === 'success') {
+      toast({
+        title: "Purchase successful!",
+        description: "You now have full access to this tour. Enjoy!",
+      });
+      // Clean up the URL
+      window.history.replaceState({}, '', `/tour/${id}`);
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -237,6 +301,24 @@ export default function TourDetail() {
     }
   };
 
+  const handleSendTip = (amount: number) => {
+    if (amount <= 0) return;
+    tipMutation.mutate(amount);
+  };
+
+  const handleCustomTip = () => {
+    const amount = parseFloat(customTipAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid tip amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+    handleSendTip(amount);
+  };
+
   const getCategoryColor = (category: string) => {
     const colors = {
       history: "bg-amber-100 text-amber-800",
@@ -361,9 +443,10 @@ export default function TourDetail() {
                 </div>
               </div>
 
-              {/* Start Walking button — for free tours with stops */}
-              {user && hasStops && !isPaidTour && (
-                <div>
+              {/* Action buttons */}
+              <div className="flex items-center gap-3">
+                {/* Start Walking button — for free tours with stops */}
+                {user && hasStops && !isPaidTour && (
                   <Button
                     className="bg-green-600 hover:bg-green-700 text-white"
                     onClick={() => setIsWalkingMode(true)}
@@ -371,8 +454,72 @@ export default function TourDetail() {
                     <Footprints className="h-4 w-4 mr-2" />
                     Start Walking
                   </Button>
-                </div>
-              )}
+                )}
+
+                {/* Tip button — for logged-in users viewing someone else's tour */}
+                {user && tour.creatorId !== user.id && (
+                  <Popover open={tipOpen} onOpenChange={setTipOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="border-pink-400 text-pink-600 hover:bg-pink-50"
+                      >
+                        <Heart className="h-4 w-4 mr-2" />
+                        Tip Creator
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64" align="start">
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-gray-900">Send a tip to the creator</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[2, 5, 10].map((amount) => (
+                            <Button
+                              key={amount}
+                              size="sm"
+                              variant="outline"
+                              className="border-pink-300 hover:bg-pink-50 hover:text-pink-700"
+                              onClick={() => handleSendTip(amount)}
+                              disabled={tipMutation.isPending}
+                            >
+                              {tipMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                `€${amount}`
+                              )}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-gray-500">€</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              step="0.50"
+                              placeholder="Other"
+                              value={customTipAmount}
+                              onChange={(e) => setCustomTipAmount(e.target.value)}
+                              className="pl-7 h-8 text-sm"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            className="bg-pink-500 hover:bg-pink-600 text-white h-8"
+                            onClick={handleCustomTip}
+                            disabled={tipMutation.isPending || !customTipAmount}
+                          >
+                            {tipMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              "Send"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
 
               {/* Progress bar — only for logged-in users with stops */}
               {user && hasStops && (
@@ -399,15 +546,28 @@ export default function TourDetail() {
           </div>
         </div>
 
-        {/* Coming Soon banner for paid tours */}
+        {/* Buy Tour banner for paid tours */}
         {isPaidTour && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
-            <div className="max-w-7xl mx-auto flex items-center gap-3">
-              <Lock className="h-5 w-5 text-amber-600 flex-shrink-0" />
-              <div>
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Lock className="h-5 w-5 text-amber-600 flex-shrink-0" />
                 <span className="text-amber-800 font-medium">This is a paid tour ({formatTourPrice(tour)})</span>
-                <span className="text-amber-600 ml-2">- Purchasing is coming soon. You can preview the tour stops below.</span>
               </div>
+              {user && (
+                <Button
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => purchaseMutation.mutate()}
+                  disabled={purchaseMutation.isPending}
+                >
+                  {purchaseMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                  )}
+                  Buy Tour - {formatTourPrice(tour)}
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -447,7 +607,7 @@ export default function TourDetail() {
                             if (isPaidTour) {
                               toast({
                                 title: "Paid tour",
-                                description: "Purchasing tours is coming soon!",
+                                description: "Purchase this tour to unlock all stops.",
                               });
                               return;
                             }
