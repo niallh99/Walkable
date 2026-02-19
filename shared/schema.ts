@@ -49,6 +49,7 @@ export const tourStops = pgTable("tour_stops", {
   videoFileUrl: text("video_file_url"),
   mediaType: text("media_type").default('audio'), // 'audio' | 'video'
   order: integer("order").notNull(),
+  contributedBy: integer("contributed_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -127,6 +128,17 @@ export const collaborators = pgTable("collaborators", {
   uniqueCollab: index("collaborators_unique_idx").on(table.tourId, table.invitedUserId),
 }));
 
+export const tourActivityLog = pgTable("tour_activity_log", {
+  id: serial("id").primaryKey(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  action: text("action").notNull(), // 'stop_added' | 'stop_updated' | 'stop_deleted' | 'tour_updated' | 'collaborator_invited' | 'collaborator_accepted'
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  tourIdx: index("tour_activity_log_tour_id_idx").on(table.tourId),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -157,6 +169,7 @@ export const insertTourStopSchema = createInsertSchema(tourStops).omit({
   id: true,
   createdAt: true,
   tourId: true,
+  contributedBy: true,
 });
 
 export const userRoles = ['explorer', 'creator'] as const;
@@ -179,4 +192,5 @@ export type StripeAccount = typeof stripeAccounts.$inferSelect;
 export type Purchase = typeof purchases.$inferSelect;
 export type Tip = typeof tips.$inferSelect;
 export type Collaborator = typeof collaborators.$inferSelect;
+export type TourActivityLog = typeof tourActivityLog.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;

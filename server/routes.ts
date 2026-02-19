@@ -1763,6 +1763,168 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add a stop to a tour (POST /api/tours/:id/stops)
+  app.post("/api/tours/:id/stops", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Check owner or accepted editor
+      if (tour.creatorId !== req.user.id) {
+        const collab = await storage.getCollaborator(tourId, req.user.id);
+        if (!collab || collab.status !== 'accepted' || collab.role !== 'editor') {
+          return res.status(403).json({ error: "Forbidden", details: "Only the owner or editor collaborators can add stops" });
+        }
+      }
+
+      const { title, description, latitude, longitude, audioFileUrl, videoFileUrl, mediaType, order } = req.body;
+      if (!title || !latitude || !longitude) {
+        return res.status(400).json({ error: "Bad request", details: "Title, latitude, and longitude are required" });
+      }
+
+      const stopData = {
+        title: sanitizeText(title),
+        description: sanitizeText(description) || '',
+        latitude,
+        longitude,
+        audioFileUrl: audioFileUrl || null,
+        videoFileUrl: videoFileUrl || null,
+        mediaType: mediaType || 'audio',
+        order: order || 1,
+      };
+
+      const newStop = await storage.addStopToTour(tourId, stopData, req.user.id);
+      await storage.createActivityLog(tourId, req.user.id, 'stop_added', `Added stop "${sanitizeText(title)}"`);
+
+      res.status(201).json({ message: "Stop added", stop: newStop });
+    } catch (error) {
+      console.error('Add stop error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to add stop" });
+    }
+  });
+
+  // Update a stop (PUT /api/tours/:id/stops/:stopId)
+  app.put("/api/tours/:id/stops/:stopId", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      const stopId = parseInt(req.params.stopId);
+      if (isNaN(tourId) || isNaN(stopId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour or stop ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Check owner or accepted editor
+      if (tour.creatorId !== req.user.id) {
+        const collab = await storage.getCollaborator(tourId, req.user.id);
+        if (!collab || collab.status !== 'accepted' || collab.role !== 'editor') {
+          return res.status(403).json({ error: "Forbidden", details: "Only the owner or editor collaborators can edit stops" });
+        }
+      }
+
+      const stop = await storage.getStop(stopId);
+      if (!stop || stop.tourId !== tourId) {
+        return res.status(404).json({ error: "Not found", details: "Stop not found on this tour" });
+      }
+
+      const { title, description, latitude, longitude, audioFileUrl, videoFileUrl, mediaType, order } = req.body;
+      const updateData: Record<string, any> = {};
+      if (title !== undefined) updateData.title = sanitizeText(title);
+      if (description !== undefined) updateData.description = sanitizeText(description);
+      if (latitude !== undefined) updateData.latitude = latitude;
+      if (longitude !== undefined) updateData.longitude = longitude;
+      if (audioFileUrl !== undefined) updateData.audioFileUrl = audioFileUrl;
+      if (videoFileUrl !== undefined) updateData.videoFileUrl = videoFileUrl;
+      if (mediaType !== undefined) updateData.mediaType = mediaType;
+      if (order !== undefined) updateData.order = order;
+
+      const updated = await storage.updateStop(stopId, updateData);
+      await storage.createActivityLog(tourId, req.user.id, 'stop_updated', `Updated stop "${updated.title}"`);
+
+      res.json({ message: "Stop updated", stop: updated });
+    } catch (error) {
+      console.error('Update stop error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to update stop" });
+    }
+  });
+
+  // Delete a stop (DELETE /api/tours/:id/stops/:stopId)
+  app.delete("/api/tours/:id/stops/:stopId", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      const stopId = parseInt(req.params.stopId);
+      if (isNaN(tourId) || isNaN(stopId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour or stop ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Check owner or accepted editor
+      if (tour.creatorId !== req.user.id) {
+        const collab = await storage.getCollaborator(tourId, req.user.id);
+        if (!collab || collab.status !== 'accepted' || collab.role !== 'editor') {
+          return res.status(403).json({ error: "Forbidden", details: "Only the owner or editor collaborators can delete stops" });
+        }
+      }
+
+      const stop = await storage.getStop(stopId);
+      if (!stop || stop.tourId !== tourId) {
+        return res.status(404).json({ error: "Not found", details: "Stop not found on this tour" });
+      }
+
+      const stopTitle = stop.title;
+      await storage.deleteStop(stopId);
+      await storage.createActivityLog(tourId, req.user.id, 'stop_deleted', `Deleted stop "${stopTitle}"`);
+
+      res.json({ message: "Stop deleted" });
+    } catch (error) {
+      console.error('Delete stop error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to delete stop" });
+    }
+  });
+
+  // Get activity log for a tour (GET /api/tours/:id/activity)
+  app.get("/api/tours/:id/activity", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Only owner or collaborators can view activity
+      if (tour.creatorId !== req.user.id) {
+        const collab = await storage.getCollaborator(tourId, req.user.id);
+        if (!collab || collab.status !== 'accepted') {
+          return res.status(403).json({ error: "Forbidden", details: "Only the owner or collaborators can view activity" });
+        }
+      }
+
+      const activity = await storage.getActivityLogByTour(tourId);
+      res.json(activity);
+    } catch (error) {
+      console.error('Get activity log error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch activity log" });
+    }
+  });
+
   // Send a tip to a tour creator (POST /api/tours/:id/tip)
   app.post("/api/tours/:id/tip", authenticateToken, async (req: any, res) => {
     if (!isStripeConfigured()) {

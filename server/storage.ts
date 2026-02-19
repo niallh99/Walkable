@@ -1,6 +1,6 @@
-import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, tourActivityLog, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type TourActivityLog, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql } from "drizzle-orm";
+import { eq, and, gt, sql, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -47,6 +47,16 @@ export interface IStorage {
   createTip(fromUserId: number, toUserId: number, tourId: number, amount: string, currency: string, stripePaymentId: string): Promise<Tip>;
   getTipByPaymentId(stripePaymentId: string): Promise<Tip | undefined>;
   getTotalTipsForCreator(creatorId: number): Promise<{ count: number; totalAmount: string }>;
+
+  // Stop CRUD methods
+  addStopToTour(tourId: number, stop: InsertTourStop, contributedBy: number): Promise<TourStop>;
+  updateStop(stopId: number, data: Partial<Omit<TourStop, 'id' | 'tourId' | 'createdAt'>>): Promise<TourStop>;
+  deleteStop(stopId: number): Promise<void>;
+  getStop(stopId: number): Promise<TourStop | undefined>;
+
+  // Activity log methods
+  createActivityLog(tourId: number, userId: number, action: string, details?: string): Promise<TourActivityLog>;
+  getActivityLogByTour(tourId: number): Promise<(TourActivityLog & { user: { id: number; username: string } })[]>;
 
   // Collaborator methods
   createCollaborator(tourId: number, invitedUserId: number, invitedByUserId: number, role: string): Promise<Collaborator>;
@@ -404,6 +414,61 @@ export class DatabaseStorage implements IStorage {
       .from(tips)
       .where(eq(tips.toUserId, creatorId));
     return result || { count: 0, totalAmount: '0' };
+  }
+
+  async addStopToTour(tourId: number, stop: InsertTourStop, contributedBy: number): Promise<TourStop> {
+    const [newStop] = await db
+      .insert(tourStops)
+      .values({ ...stop, tourId, contributedBy })
+      .returning();
+    return newStop;
+  }
+
+  async updateStop(stopId: number, data: Partial<Omit<TourStop, 'id' | 'tourId' | 'createdAt'>>): Promise<TourStop> {
+    const [updated] = await db
+      .update(tourStops)
+      .set(data)
+      .where(eq(tourStops.id, stopId))
+      .returning();
+    return updated;
+  }
+
+  async deleteStop(stopId: number): Promise<void> {
+    await db.delete(tourStops).where(eq(tourStops.id, stopId));
+  }
+
+  async getStop(stopId: number): Promise<TourStop | undefined> {
+    const [stop] = await db.select().from(tourStops).where(eq(tourStops.id, stopId));
+    return stop || undefined;
+  }
+
+  async createActivityLog(tourId: number, userId: number, action: string, details?: string): Promise<TourActivityLog> {
+    const [log] = await db
+      .insert(tourActivityLog)
+      .values({ tourId, userId, action, details: details || null })
+      .returning();
+    return log;
+  }
+
+  async getActivityLogByTour(tourId: number): Promise<(TourActivityLog & { user: { id: number; username: string } })[]> {
+    const results = await db
+      .select({
+        id: tourActivityLog.id,
+        tourId: tourActivityLog.tourId,
+        userId: tourActivityLog.userId,
+        action: tourActivityLog.action,
+        details: tourActivityLog.details,
+        createdAt: tourActivityLog.createdAt,
+        user: {
+          id: users.id,
+          username: users.username,
+        },
+      })
+      .from(tourActivityLog)
+      .innerJoin(users, eq(tourActivityLog.userId, users.id))
+      .where(eq(tourActivityLog.tourId, tourId))
+      .orderBy(desc(tourActivityLog.createdAt));
+    return results;
   }
 
   async createCollaborator(tourId: number, invitedUserId: number, invitedByUserId: number, role: string): Promise<Collaborator> {
