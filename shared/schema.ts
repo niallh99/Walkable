@@ -83,6 +83,35 @@ export const stripeAccounts = pgTable("stripe_accounts", {
   userIdIdx: index("stripe_accounts_user_id_idx").on(table.userId),
 }));
 
+export const purchases = pgTable("purchases", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull(),
+  stripePaymentId: text("stripe_payment_id").notNull().unique(),
+  status: text("status").default('completed').notNull(), // 'pending' | 'completed' | 'refunded'
+  purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
+}, (table) => ({
+  userTourIdx: index("purchases_user_tour_idx").on(table.userId, table.tourId),
+  userIdx: index("purchases_user_id_idx").on(table.userId),
+}));
+
+export const tips = pgTable("tips", {
+  id: serial("id").primaryKey(),
+  fromUserId: integer("from_user_id").references(() => users.id).notNull(),
+  toUserId: integer("to_user_id").references(() => users.id).notNull(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull(),
+  stripePaymentId: text("stripe_payment_id").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  fromUserIdx: index("tips_from_user_id_idx").on(table.fromUserId),
+  toUserIdx: index("tips_to_user_id_idx").on(table.toUserId),
+  tourIdx: index("tips_tour_id_idx").on(table.tourId),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -132,4 +161,6 @@ export type InsertTourStop = z.infer<typeof insertTourStopSchema>;
 export type CompletedTour = typeof completedTours.$inferSelect;
 export type TourProgress = typeof tourProgress.$inferSelect;
 export type StripeAccount = typeof stripeAccounts.$inferSelect;
+export type Purchase = typeof purchases.$inferSelect;
+export type Tip = typeof tips.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;

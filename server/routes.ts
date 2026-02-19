@@ -252,6 +252,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           break;
         }
+        case 'checkout.session.completed': {
+          const session = event.data.object as any;
+          if (session.payment_status === 'paid' && session.metadata?.walkable_tour_id) {
+            const paymentId = session.payment_intent as string;
+
+            if (session.metadata.walkable_tip === 'true') {
+              // Handle tip payment
+              const existingTip = await storage.getTipByPaymentId(paymentId);
+              if (!existingTip) {
+                await storage.createTip(
+                  parseInt(session.metadata.walkable_from_user_id),
+                  parseInt(session.metadata.walkable_to_user_id),
+                  parseInt(session.metadata.walkable_tour_id),
+                  (session.amount_total / 100).toFixed(2),
+                  (session.currency || 'eur').toUpperCase(),
+                  paymentId
+                );
+              }
+            } else {
+              // Handle tour purchase
+              const userId = parseInt(session.metadata.walkable_user_id);
+              const tourId = parseInt(session.metadata.walkable_tour_id);
+
+              const existing = await storage.getPurchaseByPaymentId(paymentId);
+              if (!existing) {
+                await storage.createPurchase(
+                  userId,
+                  tourId,
+                  (session.amount_total / 100).toFixed(2),
+                  (session.currency || 'eur').toUpperCase(),
+                  paymentId
+                );
+              }
+            }
+          }
+          break;
+        }
         default:
           console.log(`Unhandled Stripe event type: ${event.type}`);
       }
@@ -1454,6 +1491,231 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({
         error: "Internal server error",
         details: "Failed to check Stripe Connect status"
+      });
+    }
+  });
+
+  // Purchase a paid tour (POST /api/tours/:id/purchase)
+  app.post("/api/tours/:id/purchase", authenticateToken, async (req: any, res) => {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: "Stripe is not configured" });
+    }
+
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Free tours don't need purchase
+      const price = parseFloat(tour.price);
+      if (price <= 0) {
+        return res.status(400).json({ error: "Bad request", details: "This tour is free" });
+      }
+
+      // Check if already purchased
+      const existingPurchase = await storage.getPurchase(req.user.id, tourId);
+      if (existingPurchase) {
+        return res.status(409).json({ error: "Conflict", details: "You have already purchased this tour" });
+      }
+
+      // Creator must have a connected Stripe account
+      const creatorStripe = await storage.getStripeAccount(tour.creatorId);
+      if (!creatorStripe || !creatorStripe.onboardingComplete) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Tour creator has not completed payment setup"
+        });
+      }
+
+      const stripe = getStripe();
+      const origin = req.headers.origin || req.protocol + '://' + req.get('host');
+      const amountInCents = Math.round(price * 100);
+      const platformFee = Math.round(amountInCents * 0.20); // 20% platform fee
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: tour.currency.toLowerCase(),
+            product_data: {
+              name: tour.title,
+              description: tour.description.substring(0, 500),
+            },
+            unit_amount: amountInCents,
+          },
+          quantity: 1,
+        }],
+        payment_intent_data: {
+          application_fee_amount: platformFee,
+          transfer_data: {
+            destination: creatorStripe.stripeAccountId,
+          },
+        },
+        metadata: {
+          walkable_user_id: String(req.user.id),
+          walkable_tour_id: String(tourId),
+        },
+        success_url: `${origin}/tours/${tourId}?purchase=success`,
+        cancel_url: `${origin}/tours/${tourId}?purchase=cancel`,
+      });
+
+      res.json({ checkoutUrl: session.url });
+    } catch (error: any) {
+      console.error('Tour purchase error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to create checkout session"
+      });
+    }
+  });
+
+  // Check if user has access to a paid tour (GET /api/tours/:id/access)
+  app.get("/api/tours/:id/access", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Free tours are always accessible
+      const price = parseFloat(tour.price);
+      if (price <= 0) {
+        return res.json({ hasAccess: true, reason: 'free' });
+      }
+
+      // Creator always has access to their own tours
+      if (tour.creatorId === req.user.id) {
+        return res.json({ hasAccess: true, reason: 'creator' });
+      }
+
+      // Check for completed purchase
+      const purchase = await storage.getPurchase(req.user.id, tourId);
+      if (purchase) {
+        return res.json({ hasAccess: true, reason: 'purchased', purchasedAt: purchase.purchasedAt });
+      }
+
+      res.json({ hasAccess: false });
+    } catch (error) {
+      console.error('Tour access check error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to check tour access"
+      });
+    }
+  });
+
+  // Send a tip to a tour creator (POST /api/tours/:id/tip)
+  app.post("/api/tours/:id/tip", authenticateToken, async (req: any, res) => {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: "Stripe is not configured" });
+    }
+
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const { amount } = req.body;
+      if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        return res.status(400).json({ error: "Bad request", details: "A positive tip amount is required" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Can't tip yourself
+      if (tour.creatorId === req.user.id) {
+        return res.status(400).json({ error: "Bad request", details: "You cannot tip yourself" });
+      }
+
+      // Creator must have a connected Stripe account
+      const creatorStripe = await storage.getStripeAccount(tour.creatorId);
+      if (!creatorStripe || !creatorStripe.onboardingComplete) {
+        return res.status(400).json({
+          error: "Bad request",
+          details: "Tour creator has not completed payment setup"
+        });
+      }
+
+      const stripe = getStripe();
+      const origin = req.headers.origin || req.protocol + '://' + req.get('host');
+      const tipAmountCents = Math.round(parseFloat(amount) * 100);
+      const platformFee = Math.round(tipAmountCents * 0.20); // 20% platform fee
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: tour.currency.toLowerCase(),
+            product_data: {
+              name: `Tip for "${tour.title}"`,
+            },
+            unit_amount: tipAmountCents,
+          },
+          quantity: 1,
+        }],
+        payment_intent_data: {
+          application_fee_amount: platformFee,
+          transfer_data: {
+            destination: creatorStripe.stripeAccountId,
+          },
+        },
+        metadata: {
+          walkable_tip: 'true',
+          walkable_from_user_id: String(req.user.id),
+          walkable_to_user_id: String(tour.creatorId),
+          walkable_tour_id: String(tourId),
+        },
+        success_url: `${origin}/tours/${tourId}?tip=success`,
+        cancel_url: `${origin}/tours/${tourId}?tip=cancel`,
+      });
+
+      res.json({ checkoutUrl: session.url });
+    } catch (error: any) {
+      console.error('Tip checkout error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to create tip checkout session"
+      });
+    }
+  });
+
+  // Get total tips for a creator (GET /api/creators/:id/tips/total)
+  app.get("/api/creators/:id/tips/total", async (req, res) => {
+    try {
+      const creatorId = parseInt(req.params.id);
+      if (isNaN(creatorId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid creator ID" });
+      }
+
+      const user = await storage.getUser(creatorId);
+      if (!user) {
+        return res.status(404).json({ error: "Not found", details: "Creator not found" });
+      }
+
+      const totals = await storage.getTotalTipsForCreator(creatorId);
+      res.json(totals);
+    } catch (error) {
+      console.error('Get creator tips total error:', error);
+      res.status(500).json({
+        error: "Internal server error",
+        details: "Failed to fetch creator tips total"
       });
     }
   });

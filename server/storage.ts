@@ -1,4 +1,4 @@
-import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt, sql } from "drizzle-orm";
 
@@ -33,10 +33,20 @@ export interface IStorage {
   createStripeAccount(userId: number, stripeAccountId: string): Promise<StripeAccount>;
   updateStripeAccountOnboarding(userId: number, complete: boolean): Promise<StripeAccount>;
 
+  // Purchase methods
+  createPurchase(userId: number, tourId: number, amount: string, currency: string, stripePaymentId: string): Promise<Purchase>;
+  getPurchase(userId: number, tourId: number): Promise<Purchase | undefined>;
+  getPurchaseByPaymentId(stripePaymentId: string): Promise<Purchase | undefined>;
+
   // Completed tours methods
   getCompletedToursByUser(userId: number): Promise<(CompletedTour & { tour: Tour })[]>;
   markTourAsCompleted(userId: number, tourId: number): Promise<CompletedTour>;
   isTourCompleted(userId: number, tourId: number): Promise<boolean>;
+
+  // Tip methods
+  createTip(fromUserId: number, toUserId: number, tourId: number, amount: string, currency: string, stripePaymentId: string): Promise<Tip>;
+  getTipByPaymentId(stripePaymentId: string): Promise<Tip | undefined>;
+  getTotalTipsForCreator(creatorId: number): Promise<{ count: number; totalAmount: string }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -193,6 +203,30 @@ export class DatabaseStorage implements IStorage {
     return account;
   }
 
+  async createPurchase(userId: number, tourId: number, amount: string, currency: string, stripePaymentId: string): Promise<Purchase> {
+    const [purchase] = await db
+      .insert(purchases)
+      .values({ userId, tourId, amount, currency, stripePaymentId, status: 'completed' })
+      .returning();
+    return purchase;
+  }
+
+  async getPurchase(userId: number, tourId: number): Promise<Purchase | undefined> {
+    const [purchase] = await db
+      .select()
+      .from(purchases)
+      .where(and(eq(purchases.userId, userId), eq(purchases.tourId, tourId), eq(purchases.status, 'completed')));
+    return purchase || undefined;
+  }
+
+  async getPurchaseByPaymentId(stripePaymentId: string): Promise<Purchase | undefined> {
+    const [purchase] = await db
+      .select()
+      .from(purchases)
+      .where(eq(purchases.stripePaymentId, stripePaymentId));
+    return purchase || undefined;
+  }
+
   async getCompletedToursByUser(userId: number): Promise<(CompletedTour & { tour: Tour })[]> {
     const result = await db
       .select({
@@ -330,9 +364,36 @@ export class DatabaseStorage implements IStorage {
   async deleteTour(id: number): Promise<void> {
     // Delete tour stops first (foreign key constraint)
     await db.delete(tourStops).where(eq(tourStops.tourId, id));
-    
+
     // Delete the tour
     await db.delete(tours).where(eq(tours.id, id));
+  }
+
+  async createTip(fromUserId: number, toUserId: number, tourId: number, amount: string, currency: string, stripePaymentId: string): Promise<Tip> {
+    const [tip] = await db
+      .insert(tips)
+      .values({ fromUserId, toUserId, tourId, amount, currency, stripePaymentId })
+      .returning();
+    return tip;
+  }
+
+  async getTipByPaymentId(stripePaymentId: string): Promise<Tip | undefined> {
+    const [tip] = await db
+      .select()
+      .from(tips)
+      .where(eq(tips.stripePaymentId, stripePaymentId));
+    return tip || undefined;
+  }
+
+  async getTotalTipsForCreator(creatorId: number): Promise<{ count: number; totalAmount: string }> {
+    const [result] = await db
+      .select({
+        count: sql<number>`cast(count(*) as integer)`,
+        totalAmount: sql<string>`coalesce(sum(${tips.amount}), '0')`,
+      })
+      .from(tips)
+      .where(eq(tips.toUserId, creatorId));
+    return result || { count: 0, totalAmount: '0' };
   }
 }
 
