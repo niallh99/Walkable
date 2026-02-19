@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle, Loader2, Users, UserPlus, X, Crown, Eye } from 'lucide-react';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { useToast } from '@/hooks/use-toast';
@@ -129,10 +130,60 @@ export default function CreateTourNew() {
   const editTourId = urlParams.get('edit');
   const isEditMode = !!editTourId;
 
+  // Collaborators state
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
+
   // Fetch existing tour data when in edit mode
   const { data: existingTour, isLoading: isLoadingTour } = useQuery({
     queryKey: [`/api/tours/${editTourId}/details`],
     enabled: isEditMode,
+  });
+
+  // Fetch collaborators when in edit mode
+  const { data: collaborators = [], isLoading: isLoadingCollaborators } = useQuery<any[]>({
+    queryKey: [`/api/tours/${editTourId}/collaborators`],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/tours/${editTourId}/collaborators`);
+      return response.json();
+    },
+    enabled: isEditMode,
+  });
+
+  // Invite collaborator mutation
+  const inviteCollaboratorMutation = useMutation({
+    mutationFn: async ({ username, role }: { username: string; role: string }) => {
+      const response = await apiRequest(`/api/tours/${editTourId}/collaborators`, {
+        method: 'POST',
+        body: { username, role },
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/collaborators`] });
+      setInviteUsername('');
+      toast({ title: 'Invitation sent!', description: `${inviteUsername} has been invited as a collaborator.` });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Invitation failed', description: error.message || 'Could not send invitation.', variant: 'destructive' });
+    },
+  });
+
+  // Remove collaborator mutation
+  const removeCollaboratorMutation = useMutation({
+    mutationFn: async (collaboratorId: number) => {
+      const response = await apiRequest(`/api/collaborators/${collaboratorId}`, {
+        method: 'DELETE',
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/collaborators`] });
+      toast({ title: 'Collaborator removed' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Remove failed', description: error.message, variant: 'destructive' });
+    },
   });
 
   // Populate form with existing tour data
@@ -291,6 +342,134 @@ export default function CreateTourNew() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isCreating, createTourMutation.isPending]);
+
+  // Collaborators tab renderer
+  const renderCollaboratorsTab = () => {
+    const statusColors: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      accepted: 'bg-green-100 text-green-800',
+      declined: 'bg-red-100 text-red-800',
+    };
+
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Collaborators</h2>
+          <p className="text-gray-600">Invite others to help build this tour. Editors can add stops; viewers can preview the tour.</p>
+        </div>
+
+        {/* Invite form */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-walkable-cyan" />
+            Invite a Collaborator
+          </h3>
+          <div className="flex gap-3">
+            <Input
+              placeholder="Username"
+              value={inviteUsername}
+              onChange={(e) => setInviteUsername(e.target.value)}
+              className="flex-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && inviteUsername.trim()) {
+                  inviteCollaboratorMutation.mutate({ username: inviteUsername.trim(), role: inviteRole });
+                }
+              }}
+            />
+            <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as 'editor' | 'viewer')}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="editor">
+                  <div className="flex items-center gap-1">
+                    <Crown className="h-3 w-3" />
+                    Editor
+                  </div>
+                </SelectItem>
+                <SelectItem value="viewer">
+                  <div className="flex items-center gap-1">
+                    <Eye className="h-3 w-3" />
+                    Viewer
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={() => {
+                if (inviteUsername.trim()) {
+                  inviteCollaboratorMutation.mutate({ username: inviteUsername.trim(), role: inviteRole });
+                }
+              }}
+              disabled={!inviteUsername.trim() || inviteCollaboratorMutation.isPending}
+              className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+            >
+              {inviteCollaboratorMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                'Invite'
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Editors can add and edit tour stops. Viewers can preview the tour draft.
+          </p>
+        </Card>
+
+        {/* Collaborators list */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5 text-walkable-cyan" />
+            Current Collaborators
+          </h3>
+          {isLoadingCollaborators ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-walkable-cyan" />
+            </div>
+          ) : collaborators.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p>No collaborators yet.</p>
+              <p className="text-sm">Invite someone above to get started.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {collaborators.map((collab: any) => (
+                <div key={collab.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-medium text-sm">
+                      {collab.invitedUser?.username?.[0]?.toUpperCase() || '?'}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{collab.invitedUser?.username || 'Unknown user'}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-gray-500 capitalize flex items-center gap-1">
+                          {collab.role === 'editor' ? <Crown className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                          {collab.role}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium capitalize ${statusColors[collab.status] || 'bg-gray-100 text-gray-800'}`}>
+                          {collab.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 hover:text-red-500 hover:bg-red-50"
+                    onClick={() => removeCollaboratorMutation.mutate(collab.id)}
+                    disabled={removeCollaboratorMutation.isPending}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  };
 
   // Step 1: Tour Details
   const handleCoverImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1150,19 +1329,52 @@ export default function CreateTourNew() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
+
       <div className="pt-24 py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <StepProgress currentStep={currentStep} />
-          
-          <div className="bg-white rounded-lg shadow-sm p-8">
-            {currentStep === 1 && renderStep1()}
-            {currentStep === 2 && renderStep2()}
-            {currentStep === 3 && renderStep3()}
-          </div>
+          {isEditMode ? (
+            <Tabs defaultValue="tour">
+              <TabsList className="mb-6 w-full max-w-xs mx-auto grid grid-cols-2">
+                <TabsTrigger value="tour">Edit Tour</TabsTrigger>
+                <TabsTrigger value="collaborators" className="flex items-center gap-1">
+                  <Users className="h-4 w-4" />
+                  Collaborators
+                  {collaborators.filter((c: any) => c.status === 'pending').length > 0 && (
+                    <span className="ml-1 bg-yellow-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                      {collaborators.filter((c: any) => c.status === 'pending').length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="tour">
+                <StepProgress currentStep={currentStep} />
+                <div className="bg-white rounded-lg shadow-sm p-8">
+                  {currentStep === 1 && renderStep1()}
+                  {currentStep === 2 && renderStep2()}
+                  {currentStep === 3 && renderStep3()}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="collaborators">
+                <div className="bg-white rounded-lg shadow-sm p-8">
+                  {renderCollaboratorsTab()}
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <>
+              <StepProgress currentStep={currentStep} />
+              <div className="bg-white rounded-lg shadow-sm p-8">
+                {currentStep === 1 && renderStep1()}
+                {currentStep === 2 && renderStep2()}
+                {currentStep === 3 && renderStep3()}
+              </div>
+            </>
+          )}
         </div>
       </div>
-      
+
       <Footer />
     </div>
   );

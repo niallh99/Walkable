@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera, Sparkles, CreditCard, CheckCircle, ExternalLink } from "lucide-react";
+import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera, Sparkles, CreditCard, CheckCircle, ExternalLink, Bell, UserCheck, UserX, Crown, Eye } from "lucide-react";
 import { Tour, UpdateUserProfile, UserRole } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -176,6 +176,39 @@ export default function Profile() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Fetch collaborator invitations for current user
+  const { data: invitations = [], isLoading: isLoadingInvitations } = useQuery<any[]>({
+    queryKey: ['/api/users/invitations'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/users/invitations');
+      return response.json();
+    },
+    enabled: !!user,
+  });
+
+  // Respond to invitation mutation
+  const respondInvitationMutation = useMutation({
+    mutationFn: async ({ collaboratorId, status }: { collaboratorId: number; status: 'accepted' | 'declined' }) => {
+      const response = await apiRequest(`/api/collaborators/${collaboratorId}/respond`, {
+        method: 'PUT',
+        body: { status },
+      });
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users/invitations'] });
+      toast({
+        title: variables.status === 'accepted' ? 'Invitation accepted!' : 'Invitation declined',
+        description: variables.status === 'accepted'
+          ? "You're now a collaborator on this tour."
+          : 'The invitation has been declined.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to respond', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -453,6 +486,82 @@ export default function Profile() {
               </div>
             </CardContent>
           </Card>
+
+          {/* My Invitations */}
+          {(isLoadingInvitations || invitations.length > 0) && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Bell className="h-5 w-5" />
+                    <span>My Invitations</span>
+                  </div>
+                  {invitations.filter((i: any) => i.status === 'pending').length > 0 && (
+                    <Badge className="bg-yellow-500 text-white hover:bg-yellow-500">
+                      {invitations.filter((i: any) => i.status === 'pending').length} pending
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingInvitations ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-walkable-cyan" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {invitations.map((invitation: any) => (
+                      <div key={invitation.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-gray-900 truncate">
+                            {invitation.tour?.title || 'Unnamed tour'}
+                          </h4>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                            <span>Invited by <span className="font-medium">{invitation.invitedBy?.username || 'Unknown'}</span></span>
+                            <span className="flex items-center gap-0.5">
+                              {invitation.role === 'editor' ? (
+                                <><Crown className="h-3 w-3" /> Editor</>
+                              ) : (
+                                <><Eye className="h-3 w-3" /> Viewer</>
+                              )}
+                            </span>
+                            {invitation.status !== 'pending' && (
+                              <span className={`capitalize font-medium ${invitation.status === 'accepted' ? 'text-green-600' : 'text-red-600'}`}>
+                                {invitation.status}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {invitation.status === 'pending' && (
+                          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white h-8"
+                              onClick={() => respondInvitationMutation.mutate({ collaboratorId: invitation.id, status: 'accepted' })}
+                              disabled={respondInvitationMutation.isPending}
+                            >
+                              <UserCheck className="h-4 w-4 mr-1" />
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-400 text-red-600 hover:bg-red-50 h-8"
+                              onClick={() => respondInvitationMutation.mutate({ collaboratorId: invitation.id, status: 'declined' })}
+                              disabled={respondInvitationMutation.isPending}
+                            >
+                              <UserX className="h-4 w-4 mr-1" />
+                              Decline
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Tours and Activity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
