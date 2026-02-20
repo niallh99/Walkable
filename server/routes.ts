@@ -13,8 +13,10 @@ import rateLimit from "express-rate-limit";
 import xss from "xss";
 import { config } from "./config";
 import { getStripe, isStripeConfigured } from "./stripe";
+import crypto from "crypto";
 import QRCode from "qrcode";
 import type { TourFilters } from "./storage";
+import { isEmailConfigured, sendPasswordResetEmail } from "./email";
 
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = "7d";
@@ -642,8 +644,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get tour by ID
-  app.get("/api/tours/:id", async (req, res) => {
+  // Get tour by ID (also records a view)
+  app.get("/api/tours/:id", optionalAuth, async (req: any, res) => {
     try {
       const tourId = parseInt(req.params.id);
       if (isNaN(tourId)) {
@@ -660,6 +662,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           details: "Tour not found"
         });
       }
+
+      // Record view (fire-and-forget)
+      storage.recordTourView(tourId, req.user?.id).catch(() => {});
 
       const [ratingStats, tags] = await Promise.all([
         storage.getTourRatingStats(tourId),
@@ -2401,6 +2406,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('QR code generation error:', error);
       res.status(500).json({ error: "Internal server error", details: "Failed to generate QR code" });
+    }
+  });
+
+  // Creator analytics overview (GET /api/analytics/overview)
+  app.get("/api/analytics/overview", authenticateToken, requireCreator, async (req: any, res) => {
+    try {
+      const overview = await storage.getAnalyticsOverview(req.user.id);
+      res.json(overview);
+    } catch (error) {
+      console.error('Analytics overview error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch analytics overview" });
+    }
+  });
+
+  // Creator analytics per-tour breakdown (GET /api/analytics/tours)
+  app.get("/api/analytics/tours", authenticateToken, requireCreator, async (req: any, res) => {
+    try {
+      const tourAnalytics = await storage.getAnalyticsByTour(req.user.id);
+      res.json(tourAnalytics);
+    } catch (error) {
+      console.error('Analytics by tour error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch tour analytics" });
+    }
+  });
+
+  // Forgot password - send reset email (POST /api/auth/forgot-password)
+  app.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== 'string') {
+        return res.status(400).json({ error: "Bad request", details: "Email is required" });
+      }
+
+      // Always return success to avoid user enumeration
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.json({ message: "If an account with that email exists, a reset link has been sent" });
+      }
+
+      if (!isEmailConfigured()) {
+        console.error('Password reset requested but RESEND_API_KEY is not configured');
+        return res.json({ message: "If an account with that email exists, a reset link has been sent" });
+      }
+
+      // Generate a secure token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await storage.createPasswordResetToken(user.id, token, expiresAt);
+
+      const origin = req.headers.origin || req.protocol + '://' + req.get('host');
+      await sendPasswordResetEmail(email, token, origin);
+
+      res.json({ message: "If an account with that email exists, a reset link has been sent" });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      // Still return success to avoid leaking info
+      res.json({ message: "If an account with that email exists, a reset link has been sent" });
+    }
+  });
+
+  // Reset password with token (POST /api/auth/reset-password)
+  app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      if (!token || typeof token !== 'string') {
+        return res.status(400).json({ error: "Bad request", details: "Reset token is required" });
+      }
+      if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+        return res.status(400).json({ error: "Bad request", details: "Password must be at least 6 characters" });
+      }
+
+      const resetToken = await storage.getPasswordResetToken(token);
+      if (!resetToken) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid or expired reset token" });
+      }
+
+      if (resetToken.used) {
+        return res.status(400).json({ error: "Bad request", details: "This reset token has already been used" });
+      }
+
+      if (new Date() > resetToken.expiresAt) {
+        return res.status(400).json({ error: "Bad request", details: "Reset token has expired" });
+      }
+
+      // Hash new password and update user
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserProfile(resetToken.userId, { password: hashedPassword });
+
+      // Mark token as used
+      await storage.markTokenUsed(resetToken.id);
+
+      res.json({ message: "Password has been reset successfully" });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to reset password" });
     }
   });
 

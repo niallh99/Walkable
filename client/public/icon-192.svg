@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="32" fill="#00BFFF"/>
+  <!-- Walking person silhouette -->
+  <circle cx="96" cy="44" r="16" fill="white"/>
+  <path d="M80 75 Q88 68 96 72 Q104 68 112 75 L118 110 L105 110 L101 90 L96 95 L91 90 L87 110 L74 110 Z" fill="white"/>
+  <path d="M74 110 L66 145 L80 147 L87 118 L91 118 L88 148 L102 148 L105 118 L109 118 L116 147 L130 145 L122 110 Z" fill="white"/>
+  <!-- Sound wave arcs -->
+  <path d="M130 62 Q148 78 148 96 Q148 114 130 130" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.7"/>
+  <path d="M140 52 Q162 70 162 96 Q162 122 140 140" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
+</svg>

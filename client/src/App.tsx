@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/components/auth-context";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { InstallPrompt } from "@/components/install-prompt";
 import Home from "@/pages/home";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
@@ -49,6 +50,7 @@ function App() {
           <TooltipProvider>
             <Toaster />
             <Router />
+            <InstallPrompt />
           </TooltipProvider>
         </AuthProvider>
       </QueryClientProvider>
