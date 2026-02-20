@@ -145,12 +145,14 @@ export function FeaturedTours() {
                       <Clock className="h-4 w-4 mr-1" />
                       <span>{tour.duration || 60} min</span>
                     </div>
-                    <div className="flex items-center text-yellow-500">
-                      <Star className="h-4 w-4 mr-1 fill-current" />
-                      <span className="text-gray-600 font-medium">
-                        {(Math.random() * 1.5 + 3.5).toFixed(1)}
-                      </span>
-                    </div>
+                    {(tour as any).averageRating > 0 && (
+                      <div className="flex items-center text-yellow-500">
+                        <Star className="h-4 w-4 mr-1 fill-current" />
+                        <span className="text-gray-600 font-medium">
+                          {parseFloat((tour as any).averageRating).toFixed(1)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

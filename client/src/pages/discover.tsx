@@ -475,10 +475,12 @@ export default function Discover() {
                     </Badge>
                   </div>
                   <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end">
-                    <div className="bg-black/70 text-white px-2 py-1 rounded-md text-sm flex items-center">
-                      <span className="text-yellow-400 mr-1">★</span>
-                      4.5
-                    </div>
+                    {(tour as any).averageRating > 0 && (
+                      <div className="bg-black/70 text-white px-2 py-1 rounded-md text-sm flex items-center">
+                        <span className="text-yellow-400 mr-1">★</span>
+                        {parseFloat((tour as any).averageRating).toFixed(1)}
+                      </div>
+                    )}
                     <Badge className={isTourFree(tour)
                       ? 'bg-green-500 text-white hover:bg-green-500'
                       : 'bg-amber-500 text-white hover:bg-amber-500'

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Navbar } from "@/components/navbar";
@@ -14,7 +15,7 @@ import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
 import { useAuth } from "@/components/auth-context";
 import { WalkingMode } from "@/components/walking-mode";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock, Footprints, Heart, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock, Footprints, Heart, ShoppingCart, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Tour, TourStop } from "@shared/schema";
@@ -50,7 +51,12 @@ export default function TourDetail() {
   const [tipOpen, setTipOpen] = useState(false);
   const [customTipAmount, setCustomTipAmount] = useState('');
   const nextStopRef = useRef<HTMLDivElement>(null);
+  const reviewsRef = useRef<HTMLDivElement>(null);
   const searchString = useSearch();
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewHover, setReviewHover] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [hasSubmittedReview, setHasSubmittedReview] = useState(false);
 
   const { data: tour, isLoading } = useQuery<TourWithStops>({
     queryKey: [`/api/tours/${id}/details`],
@@ -151,6 +157,51 @@ export default function TourDetail() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Reviews query
+  const { data: reviewsData, isLoading: isLoadingReviews } = useQuery<{
+    reviews: Array<{
+      id: number;
+      userId: number;
+      rating: number;
+      comment: string;
+      createdAt: string;
+      user: { username: string; profileImage?: string };
+    }>;
+    total: number;
+  }>({
+    queryKey: [`/api/tours/${id}/reviews`],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/tours/${id}/reviews`);
+      return response.json();
+    },
+    enabled: !!id,
+  });
+
+  const reviews = reviewsData?.reviews ?? [];
+  const userAlreadyReviewed = !!user && reviews.some((r) => r.userId === user.id);
+
+  // Submit review mutation
+  const submitReviewMutation = useMutation({
+    mutationFn: async ({ rating, comment }: { rating: number; comment: string }) => {
+      const response = await apiRequest(`/api/tours/${id}/reviews`, {
+        method: 'POST',
+        body: { rating, comment },
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tours/${id}/reviews`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tours/${id}/details`] });
+      setReviewRating(0);
+      setReviewText('');
+      setHasSubmittedReview(true);
+      toast({ title: 'Review submitted!', description: 'Thank you for your feedback.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Review failed', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -428,7 +479,7 @@ export default function TourDetail() {
                 {tour.description}
               </p>
 
-              <div className="flex items-center space-x-6 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-gray-500">
                 <div className="flex items-center">
                   <Clock className="h-4 w-4 mr-1" />
                   <span>{tour.duration || 60} minutes</span>
@@ -441,6 +492,17 @@ export default function TourDetail() {
                   <Volume2 className="h-4 w-4 mr-1" />
                   <span>{tourStops.length} media stops</span>
                 </div>
+                {(tour as any).averageRating > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <span className="font-medium text-gray-700">
+                      {parseFloat((tour as any).averageRating).toFixed(1)}
+                    </span>
+                    <span className="text-gray-400">
+                      ({(tour as any).reviewCount ?? 0} {(tour as any).reviewCount === 1 ? 'review' : 'reviews'})
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Action buttons */}
@@ -712,6 +774,154 @@ export default function TourDetail() {
         </div>
       </div>
 
+      {/* Reviews Section */}
+      <div ref={reviewsRef} className="bg-white border-t border-gray-200 py-10">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Reviews</h2>
+            {(tour as any).averageRating > 0 && (
+              <div className="flex items-center gap-1.5">
+                <div className="flex">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      className={`h-4 w-4 ${
+                        s <= Math.round((tour as any).averageRating)
+                          ? 'fill-yellow-400 text-yellow-400'
+                          : 'fill-gray-200 text-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-sm font-medium text-gray-700">
+                  {parseFloat((tour as any).averageRating).toFixed(1)}
+                </span>
+                <span className="text-sm text-gray-400">
+                  · {(tour as any).reviewCount ?? 0} {(tour as any).reviewCount === 1 ? 'review' : 'reviews'}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Review form — shown only when user has completed the tour and hasn't reviewed yet */}
+          {user && allComplete && !userAlreadyReviewed && !hasSubmittedReview && (
+            <div className="mb-8 p-5 border border-gray-200 rounded-xl bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">Leave a Review</h3>
+
+              {/* Star input */}
+              <div className="flex gap-1 mb-3">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setReviewRating(star)}
+                    onMouseEnter={() => setReviewHover(star)}
+                    onMouseLeave={() => setReviewHover(0)}
+                    className="focus:outline-none"
+                  >
+                    <Star
+                      className={`h-7 w-7 transition-colors ${
+                        star <= (reviewHover || reviewRating)
+                          ? 'fill-yellow-400 text-yellow-400'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+                {reviewRating > 0 && (
+                  <span className="ml-2 text-sm text-gray-500 self-center">
+                    {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][reviewRating]}
+                  </span>
+                )}
+              </div>
+
+              <Textarea
+                placeholder="Share your experience (optional)..."
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                className="mb-3 resize-none"
+                rows={3}
+                maxLength={1000}
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">{reviewText.length}/1000</span>
+                <Button
+                  onClick={() => {
+                    if (reviewRating === 0) {
+                      toast({ title: 'Please select a star rating', variant: 'destructive' });
+                      return;
+                    }
+                    submitReviewMutation.mutate({ rating: reviewRating, comment: reviewText });
+                  }}
+                  disabled={submitReviewMutation.isPending || reviewRating === 0}
+                  className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
+                >
+                  {submitReviewMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting...</>
+                  ) : (
+                    'Submit Review'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Prompt to complete tour */}
+          {user && !allComplete && reviews.length === 0 && (
+            <p className="text-sm text-gray-500 mb-6">
+              Complete all stops to leave a review.
+            </p>
+          )}
+
+          {/* Reviews list */}
+          {isLoadingReviews ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-walkable-cyan" />
+            </div>
+          ) : reviews.length === 0 ? (
+            <p className="text-center text-gray-400 py-8">No reviews yet. Be the first!</p>
+          ) : (
+            <div className="space-y-5">
+              {reviews.map((review) => (
+                <div key={review.id} className="flex gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-walkable-cyan to-cyan-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {review.user?.profileImage ? (
+                      <img src={review.user.profileImage} alt={review.user.username} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white text-sm font-bold">
+                        {review.user?.username?.[0]?.toUpperCase() ?? '?'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-gray-900">{review.user?.username ?? 'Anonymous'}</span>
+                      <div className="flex">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={`h-3.5 w-3.5 ${
+                              s <= review.rating ? 'fill-yellow-400 text-yellow-400' : 'fill-gray-200 text-gray-200'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {new Date(review.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {review.comment && (
+                      <p className="text-sm text-gray-700 leading-relaxed">{review.comment}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Completion celebration dialog */}
       <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
         <DialogContent className="sm:max-w-md text-center">
@@ -727,18 +937,30 @@ export default function TourDetail() {
             <p className="text-gray-600 mb-6">
               You've visited all {tourStops.length} stops on <span className="font-semibold">{tour.title}</span>. Great exploring!
             </p>
-            <div className="flex gap-3 justify-center">
+            <div className="flex flex-col gap-3 items-center">
               <Button
-                variant="outline"
-                onClick={() => setShowCelebration(false)}
+                className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white w-full sm:w-auto"
+                onClick={() => {
+                  setShowCelebration(false);
+                  setTimeout(() => reviewsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+                }}
               >
-                Keep Exploring
+                <Star className="h-4 w-4 mr-2" />
+                Leave a Review
               </Button>
-              <Link href="/discover">
-                <Button className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white">
-                  Discover More Tours
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCelebration(false)}
+                >
+                  Keep Exploring
                 </Button>
-              </Link>
+                <Link href="/discover">
+                  <Button variant="outline">
+                    Discover More Tours
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </DialogContent>
