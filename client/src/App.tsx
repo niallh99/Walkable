@@ -16,6 +16,8 @@ import Feed from "@/pages/feed";
 import Dashboard from "@/pages/dashboard";
 import TourDetail from "@/pages/tour-detail";
 import StripeConnectReturn from "@/pages/stripe-connect-return";
+import ForgotPassword from "@/pages/forgot-password";
+import ResetPassword from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -32,6 +34,8 @@ function Router() {
       <Route path="/feed" component={Feed} />
       <Route path="/tour/:id" component={TourDetail} />
       <Route path="/stripe-connect/return" component={StripeConnectReturn} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route component={NotFound} />
     </Switch>
   );

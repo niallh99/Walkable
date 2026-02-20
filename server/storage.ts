@@ -1,6 +1,6 @@
-import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, tourActivityLog, followers, reviews, categories, tourTags, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type TourActivityLog, type Follower, type Review, type Category, type TourTag, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, tourActivityLog, followers, reviews, categories, tourTags, tourViews, passwordResetTokens, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type TourActivityLog, type Follower, type Review, type Category, type TourTag, type TourView, type PasswordResetToken, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, gte, lte, sql, desc, inArray, avg, ilike } from "drizzle-orm";
+import { eq, and, gt, gte, lte, sql, desc, inArray, avg, ilike, count, sum } from "drizzle-orm";
 
 export interface TourFilters {
   pricing?: 'free' | 'paid';
@@ -103,6 +103,16 @@ export interface IStorage {
   getTagsForTour(tourId: number): Promise<Category[]>;
   getBulkTourTags(tourIds: number[]): Promise<Map<number, Category[]>>;
   seedCategories(): Promise<void>;
+
+  // Tour view / analytics methods
+  recordTourView(tourId: number, viewerUserId?: number): Promise<TourView>;
+  getAnalyticsOverview(creatorId: number): Promise<{ totalViews: number; totalCompletions: number; totalEarnings: string; totalTours: number }>;
+  getAnalyticsByTour(creatorId: number): Promise<{ tourId: number; title: string; views: number; completions: number; earnings: string; averageRating: number; reviewCount: number }[]>;
+
+  // Password reset methods
+  createPasswordResetToken(userId: number, token: string, expiresAt: Date): Promise<PasswordResetToken>;
+  getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
+  markTokenUsed(tokenId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -868,6 +878,122 @@ export class DatabaseStorage implements IStorage {
       map.set(row.tourId, existing);
     }
     return map;
+  }
+
+  // Tour view / analytics methods
+  async recordTourView(tourId: number, viewerUserId?: number): Promise<TourView> {
+    const [view] = await db.insert(tourViews).values({
+      tourId,
+      viewerUserId: viewerUserId || null,
+    }).returning();
+    return view;
+  }
+
+  async getAnalyticsOverview(creatorId: number): Promise<{ totalViews: number; totalCompletions: number; totalEarnings: string; totalTours: number }> {
+    // Get creator's tour IDs
+    const creatorTours = await db.select({ id: tours.id }).from(tours).where(eq(tours.creatorId, creatorId));
+    const tourIds = creatorTours.map(t => t.id);
+
+    if (tourIds.length === 0) {
+      return { totalViews: 0, totalCompletions: 0, totalEarnings: '0', totalTours: 0 };
+    }
+
+    const [viewsResult] = await db
+      .select({ total: count() })
+      .from(tourViews)
+      .where(inArray(tourViews.tourId, tourIds));
+
+    const [completionsResult] = await db
+      .select({ total: count() })
+      .from(completedTours)
+      .where(inArray(completedTours.tourId, tourIds));
+
+    const [purchaseEarnings] = await db
+      .select({ total: sum(purchases.amount) })
+      .from(purchases)
+      .where(and(inArray(purchases.tourId, tourIds), eq(purchases.status, 'completed')));
+
+    const [tipEarnings] = await db
+      .select({ total: sum(tips.amount) })
+      .from(tips)
+      .where(eq(tips.toUserId, creatorId));
+
+    const purchaseTotal = parseFloat(purchaseEarnings?.total || '0');
+    const tipTotal = parseFloat(tipEarnings?.total || '0');
+
+    return {
+      totalViews: viewsResult?.total || 0,
+      totalCompletions: completionsResult?.total || 0,
+      totalEarnings: (purchaseTotal + tipTotal).toFixed(2),
+      totalTours: tourIds.length,
+    };
+  }
+
+  async getAnalyticsByTour(creatorId: number): Promise<{ tourId: number; title: string; views: number; completions: number; earnings: string; averageRating: number; reviewCount: number }[]> {
+    const creatorTours = await db.select().from(tours).where(eq(tours.creatorId, creatorId));
+
+    if (creatorTours.length === 0) return [];
+
+    const tourIds = creatorTours.map(t => t.id);
+
+    // Bulk fetch all stats
+    const viewCounts = await db
+      .select({ tourId: tourViews.tourId, views: count() })
+      .from(tourViews)
+      .where(inArray(tourViews.tourId, tourIds))
+      .groupBy(tourViews.tourId);
+
+    const completionCounts = await db
+      .select({ tourId: completedTours.tourId, completions: count() })
+      .from(completedTours)
+      .where(inArray(completedTours.tourId, tourIds))
+      .groupBy(completedTours.tourId);
+
+    const earningsData = await db
+      .select({ tourId: purchases.tourId, total: sum(purchases.amount) })
+      .from(purchases)
+      .where(and(inArray(purchases.tourId, tourIds), eq(purchases.status, 'completed')))
+      .groupBy(purchases.tourId);
+
+    const ratingsMap = await this.getBulkTourRatingStats(tourIds);
+
+    const viewsMap = new Map(viewCounts.map(v => [v.tourId, v.views]));
+    const completionsMap = new Map(completionCounts.map(c => [c.tourId, c.completions]));
+    const earningsMap = new Map(earningsData.map(e => [e.tourId, e.total || '0']));
+
+    return creatorTours.map(tour => ({
+      tourId: tour.id,
+      title: tour.title,
+      views: viewsMap.get(tour.id) || 0,
+      completions: completionsMap.get(tour.id) || 0,
+      earnings: earningsMap.get(tour.id) || '0',
+      averageRating: ratingsMap.get(tour.id)?.averageRating || 0,
+      reviewCount: ratingsMap.get(tour.id)?.reviewCount || 0,
+    }));
+  }
+
+  // Password reset methods
+  async createPasswordResetToken(userId: number, token: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const [resetToken] = await db.insert(passwordResetTokens).values({
+      userId,
+      token,
+      expiresAt,
+    }).returning();
+    return resetToken;
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    const [result] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token));
+    return result || undefined;
+  }
+
+  async markTokenUsed(tokenId: number): Promise<void> {
+    await db.update(passwordResetTokens)
+      .set({ used: true })
+      .where(eq(passwordResetTokens.id, tokenId));
   }
 
   async seedCategories(): Promise<void> {

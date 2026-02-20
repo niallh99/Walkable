@@ -181,6 +181,28 @@ export const tourTags = pgTable("tour_tags", {
   uniqueTag: uniqueIndex("tour_tags_unique_idx").on(table.tourId, table.categoryId),
 }));
 
+export const tourViews = pgTable("tour_views", {
+  id: serial("id").primaryKey(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  viewerUserId: integer("viewer_user_id").references(() => users.id),
+  viewedAt: timestamp("viewed_at").defaultNow().notNull(),
+}, (table) => ({
+  tourIdx: index("tour_views_tour_id_idx").on(table.tourId),
+  viewedAtIdx: index("tour_views_viewed_at_idx").on(table.viewedAt),
+}));
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  tokenIdx: index("password_reset_tokens_token_idx").on(table.token),
+  userIdx: index("password_reset_tokens_user_id_idx").on(table.userId),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -239,4 +261,6 @@ export type Review = typeof reviews.$inferSelect;
 export type Follower = typeof followers.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type TourTag = typeof tourTags.$inferSelect;
+export type TourView = typeof tourViews.$inferSelect;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
