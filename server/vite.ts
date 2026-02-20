@@ -5,6 +5,7 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { storage } from "./storage";
 
 const viteLogger = createLogger();
 
@@ -17,6 +18,39 @@ export function log(message: string, source = "express") {
   });
 
   console.log(`${formattedTime} [${source}] ${message}`);
+}
+
+// Inject OG meta tags into HTML for tour pages
+async function injectOgTags(html: string, url: string, host: string): Promise<string> {
+  const tourMatch = url.match(/^\/tours\/(\d+)/);
+  if (!tourMatch) return html;
+
+  const tourId = parseInt(tourMatch[1]);
+  try {
+    const tour = await storage.getTour(tourId);
+    if (!tour) return html;
+
+    const origin = host.startsWith('http') ? host : `https://${host}`;
+    const tourUrl = `${origin}/tours/${tourId}`;
+    const description = tour.description.substring(0, 200).replace(/"/g, '&quot;');
+    const title = tour.title.replace(/"/g, '&quot;');
+
+    const ogTags = [
+      `<meta property="og:type" content="website" />`,
+      `<meta property="og:title" content="${title}" />`,
+      `<meta property="og:description" content="${description}" />`,
+      `<meta property="og:url" content="${tourUrl}" />`,
+      tour.coverImageUrl ? `<meta property="og:image" content="${origin}${tour.coverImageUrl}" />` : '',
+      `<meta name="twitter:card" content="summary_large_image" />`,
+      `<meta name="twitter:title" content="${title}" />`,
+      `<meta name="twitter:description" content="${description}" />`,
+      tour.coverImageUrl ? `<meta name="twitter:image" content="${origin}${tour.coverImageUrl}" />` : '',
+    ].filter(Boolean).join('\n    ');
+
+    return html.replace('</head>', `    ${ogTags}\n  </head>`);
+  } catch {
+    return html;
+  }
 }
 
 export async function setupVite(app: Express, server: Server) {
@@ -58,6 +92,8 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
+      const host = req.headers.host || 'localhost:3000';
+      template = await injectOgTags(template, url, host);
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
@@ -78,8 +114,24 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  // fall through to index.html if the file doesn't exist (with OG tag injection)
+  app.use("*", async (req, res) => {
+    const url = req.originalUrl;
+    const indexPath = path.resolve(distPath, "index.html");
+
+    // Only inject OG tags for tour pages
+    if (url.match(/^\/tours\/\d+/)) {
+      try {
+        let html = await fs.promises.readFile(indexPath, "utf-8");
+        const host = req.headers.host || 'localhost:3000';
+        html = await injectOgTags(html, url, host);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+        return;
+      } catch {
+        // Fall through to default behavior
+      }
+    }
+
+    res.sendFile(indexPath);
   });
 }

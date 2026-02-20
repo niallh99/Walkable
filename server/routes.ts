@@ -471,29 +471,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Logout successful" });
   });
 
-  // Helper to enrich tours with rating stats
-  const enrichToursWithRatings = async (tourList: any[]) => {
+  // Helper to enrich tours with rating stats and tags
+  const enrichTours = async (tourList: any[]) => {
     if (tourList.length === 0) return tourList;
     const tourIds = tourList.map(t => t.id);
-    const ratingsMap = await storage.getBulkTourRatingStats(tourIds);
+    const [ratingsMap, tagsMap] = await Promise.all([
+      storage.getBulkTourRatingStats(tourIds),
+      storage.getBulkTourTags(tourIds),
+    ]);
     return tourList.map(tour => ({
       ...tour,
       averageRating: ratingsMap.get(tour.id)?.averageRating || 0,
       reviewCount: ratingsMap.get(tour.id)?.reviewCount || 0,
+      tags: tagsMap.get(tour.id) || [],
     }));
   };
 
-  // Get tours (public route)
+  // Get tours (public route) with optional filters
   app.get("/api/tours", async (req, res) => {
     try {
-      const { pricing } = req.query;
-      let filter: 'free' | 'paid' | undefined;
-      if (pricing === 'free' || pricing === 'paid') {
-        filter = pricing;
-      }
-      const toursList = await storage.getAllTours(filter);
-      const toursWithRatings = await enrichToursWithRatings(toursList);
-      res.json(toursWithRatings);
+      const filters: TourFilters = {};
+      const { pricing, category, city, minPrice, maxPrice, minRating, minDuration, maxDuration } = req.query;
+
+      if (pricing === 'free' || pricing === 'paid') filters.pricing = pricing;
+      if (typeof category === 'string' && category) filters.category = category;
+      if (typeof city === 'string' && city) filters.city = city;
+      if (minPrice) filters.minPrice = parseFloat(minPrice as string);
+      if (maxPrice) filters.maxPrice = parseFloat(maxPrice as string);
+      if (minRating) filters.minRating = parseFloat(minRating as string);
+      if (minDuration) filters.minDuration = parseInt(minDuration as string);
+      if (maxDuration) filters.maxDuration = parseInt(maxDuration as string);
+
+      const toursList = await storage.getAllTours(filters);
+      const enrichedTours = await enrichTours(toursList);
+      res.json(enrichedTours);
     } catch (error) {
       console.error('Get tours error:', error);
       res.status(500).json({
@@ -521,7 +532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parseFloat(radius as string)
       );
 
-      const toursWithRatings = await enrichToursWithRatings(nearbyTours);
+      const toursWithRatings = await enrichTours(nearbyTours);
       res.json(toursWithRatings);
     } catch (error) {
       console.error('Get nearby tours error:', error);
@@ -650,8 +661,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const ratingStats = await storage.getTourRatingStats(tourId);
-      res.json({ ...tour, ...ratingStats });
+      const [ratingStats, tags] = await Promise.all([
+        storage.getTourRatingStats(tourId),
+        storage.getTagsForTour(tourId),
+      ]);
+      res.json({ ...tour, ...ratingStats, tags });
     } catch (error) {
       console.error('Get tour error:', error);
       res.status(500).json({
@@ -680,8 +694,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const ratingStats = await storage.getTourRatingStats(tourId);
-      res.json({ ...tourWithStops, ...ratingStats });
+      const [ratingStats, tags] = await Promise.all([
+        storage.getTourRatingStats(tourId),
+        storage.getTagsForTour(tourId),
+      ]);
+      res.json({ ...tourWithStops, ...ratingStats, tags });
     } catch (error) {
       console.error('Get tour details error:', error);
       res.status(500).json({
@@ -1240,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const creatorTours = await storage.getToursByCreator(creatorId);
-      const toursWithRatings = await enrichToursWithRatings(creatorTours);
+      const toursWithRatings = await enrichTours(creatorTours);
       res.json(toursWithRatings);
     } catch (error) {
       console.error('Get creator tours error:', error);
@@ -2175,7 +2192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/feed", authenticateToken, async (req: any, res) => {
     try {
       const feedTours = await storage.getFeedTours(req.user.id);
-      const toursWithRatings = await enrichToursWithRatings(feedTours);
+      const toursWithRatings = await enrichTours(feedTours);
       res.json(toursWithRatings);
     } catch (error) {
       console.error('Get feed error:', error);
@@ -2284,6 +2301,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Internal server error", details: "Failed to delete review" });
     }
   });
+
+  // Get all categories with tour counts (GET /api/categories)
+  app.get("/api/categories", async (_req, res) => {
+    try {
+      const categoriesWithCounts = await storage.getCategoriesWithCounts();
+      res.json(categoriesWithCounts);
+    } catch (error) {
+      console.error('Get categories error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch categories" });
+    }
+  });
+
+  // Add a tag to a tour (POST /api/tours/:id/tags)
+  app.post("/api/tours/:id/tags", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const { categoryId } = req.body;
+      if (!categoryId || isNaN(parseInt(categoryId))) {
+        return res.status(400).json({ error: "Bad request", details: "Valid categoryId is required" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      if (tour.creatorId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "Only the tour owner can manage tags" });
+      }
+
+      const tag = await storage.addTourTag(tourId, parseInt(categoryId));
+      res.status(201).json({ message: "Tag added", tag });
+    } catch (error: any) {
+      if (error.message?.includes('duplicate') || error.code === '23505') {
+        return res.status(409).json({ error: "Conflict", details: "This tag is already applied to the tour" });
+      }
+      console.error('Add tour tag error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to add tag" });
+    }
+  });
+
+  // Remove a tag from a tour (DELETE /api/tours/:id/tags/:categoryId)
+  app.delete("/api/tours/:id/tags/:categoryId", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      const categoryId = parseInt(req.params.categoryId);
+      if (isNaN(tourId) || isNaN(categoryId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour or category ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      if (tour.creatorId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "Only the tour owner can manage tags" });
+      }
+
+      await storage.removeTourTag(tourId, categoryId);
+      res.json({ message: "Tag removed" });
+    } catch (error) {
+      console.error('Remove tour tag error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to remove tag" });
+    }
+  });
+
+  // Generate QR code for a tour (GET /api/tours/:id/qr)
+  app.get("/api/tours/:id/qr", async (req, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      const size = parseInt(req.query.size as string) || 300;
+      const origin = req.headers.origin || req.protocol + '://' + req.get('host');
+      const tourUrl = `${origin}/tours/${tourId}`;
+
+      const qrBuffer = await QRCode.toBuffer(tourUrl, {
+        width: Math.min(Math.max(size, 100), 1000),
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' },
+      });
+
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'public, max-age=86400');
+      res.send(qrBuffer);
+    } catch (error) {
+      console.error('QR code generation error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to generate QR code" });
+    }
+  });
+
+  // Seed categories on startup (idempotent)
+  storage.seedCategories().catch(err => console.error('Failed to seed categories:', err));
 
   const httpServer = createServer(app);
   return httpServer;
