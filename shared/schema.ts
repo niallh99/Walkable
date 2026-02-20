@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, index, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, index, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -139,6 +139,30 @@ export const tourActivityLog = pgTable("tour_activity_log", {
   tourIdx: index("tour_activity_log_tour_id_idx").on(table.tourId),
 }));
 
+export const reviews = pgTable("reviews", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  rating: integer("rating").notNull(), // 1-5
+  reviewText: text("review_text"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  tourIdx: index("reviews_tour_id_idx").on(table.tourId),
+  userIdx: index("reviews_user_id_idx").on(table.userId),
+  uniqueReview: uniqueIndex("reviews_unique_idx").on(table.userId, table.tourId),
+}));
+
+export const followers = pgTable("followers", {
+  id: serial("id").primaryKey(),
+  followerId: integer("follower_id").references(() => users.id).notNull(),
+  followedId: integer("followed_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  followerIdx: index("followers_follower_id_idx").on(table.followerId),
+  followedIdx: index("followers_followed_id_idx").on(table.followedId),
+  uniqueFollow: uniqueIndex("followers_unique_idx").on(table.followerId, table.followedId),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -193,4 +217,6 @@ export type Purchase = typeof purchases.$inferSelect;
 export type Tip = typeof tips.$inferSelect;
 export type Collaborator = typeof collaborators.$inferSelect;
 export type TourActivityLog = typeof tourActivityLog.$inferSelect;
+export type Review = typeof reviews.$inferSelect;
+export type Follower = typeof followers.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;

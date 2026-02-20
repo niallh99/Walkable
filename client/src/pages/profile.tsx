@@ -179,6 +179,20 @@ export default function Profile() {
     },
   });
 
+  // Fetch follow stats for own profile
+  const { data: followStats } = useQuery<{
+    followerCount: number;
+    followingCount: number;
+    isFollowing: boolean;
+  }>({
+    queryKey: ['/api/users', user?.id, 'follow-stats'],
+    queryFn: async () => {
+      const res = await apiRequest(`/api/users/${user!.id}/follow-stats`);
+      return res.json();
+    },
+    enabled: !!user?.id,
+  });
+
   // Fetch collaborator invitations for current user
   const { data: invitations = [], isLoading: isLoadingInvitations } = useQuery<any[]>({
     queryKey: ['/api/users/invitations'],
@@ -458,10 +472,10 @@ export default function Profile() {
               </div>
 
               {/* Stats Row */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8 pt-6 border-t border-gray-200">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mt-8 pt-6 border-t border-gray-200">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-blue-600 mb-1">{completedTours.length}</div>
-                  <div className="text-sm text-gray-600">Tours Completed</div>
+                  <div className="text-sm text-gray-600">Completed</div>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl font-bold text-green-600 mb-1">{createdTours.length}</div>
@@ -474,14 +488,19 @@ export default function Profile() {
                       return total + (isNaN(distance) ? 0 : distance);
                     }, 0).toFixed(1)}km
                   </div>
-                  <div className="text-sm text-gray-600">Distance Created</div>
+                  <div className="text-sm text-gray-600">Distance</div>
                 </div>
                 <div className="text-center">
-                  <div className="flex items-center justify-center mb-1">
-                    <span className="text-3xl font-bold text-yellow-600 mr-1">4.8</span>
-                    <span className="text-yellow-500">★</span>
+                  <div className="text-3xl font-bold text-walkable-cyan mb-1">
+                    {followStats?.followerCount ?? 0}
                   </div>
-                  <div className="text-sm text-gray-600">Avg Rating</div>
+                  <div className="text-sm text-gray-600">Followers</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-cyan-500 mb-1">
+                    {followStats?.followingCount ?? 0}
+                  </div>
+                  <div className="text-sm text-gray-600">Following</div>
                 </div>
               </div>
             </CardContent>

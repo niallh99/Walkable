@@ -195,6 +195,25 @@ const authenticateToken = async (req: any, res: any, next: any) => {
   }
 };
 
+// Optional auth middleware - extracts user if token present, but doesn't require it
+const optionalAuth = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const user = await storage.getUser(decoded.userId);
+      if (user) {
+        req.user = user;
+      }
+    } catch (error) {
+      // Token invalid/expired — continue without auth
+    }
+  }
+  next();
+};
+
 // Middleware to require creator role
 const requireCreator = (req: any, res: any, next: any) => {
   if (req.user.role !== 'creator') {
@@ -450,6 +469,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Logout successful" });
   });
 
+  // Helper to enrich tours with rating stats
+  const enrichToursWithRatings = async (tourList: any[]) => {
+    if (tourList.length === 0) return tourList;
+    const tourIds = tourList.map(t => t.id);
+    const ratingsMap = await storage.getBulkTourRatingStats(tourIds);
+    return tourList.map(tour => ({
+      ...tour,
+      averageRating: ratingsMap.get(tour.id)?.averageRating || 0,
+      reviewCount: ratingsMap.get(tour.id)?.reviewCount || 0,
+    }));
+  };
+
   // Get tours (public route)
   app.get("/api/tours", async (req, res) => {
     try {
@@ -458,8 +489,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (pricing === 'free' || pricing === 'paid') {
         filter = pricing;
       }
-      const tours = await storage.getAllTours(filter);
-      res.json(tours);
+      const toursList = await storage.getAllTours(filter);
+      const toursWithRatings = await enrichToursWithRatings(toursList);
+      res.json(toursWithRatings);
     } catch (error) {
       console.error('Get tours error:', error);
       res.status(500).json({
@@ -473,7 +505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/tours/nearby", async (req, res) => {
     try {
       const { lat, lon, radius = 10 } = req.query;
-      
+
       if (!lat || !lon) {
         return res.status(400).json({
           error: "Bad request",
@@ -481,16 +513,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const tours = await storage.getNearbyTours(
+      const nearbyTours = await storage.getNearbyTours(
         parseFloat(lat as string),
         parseFloat(lon as string),
         parseFloat(radius as string)
       );
-      
-      res.json(tours);
+
+      const toursWithRatings = await enrichToursWithRatings(nearbyTours);
+      res.json(toursWithRatings);
     } catch (error) {
       console.error('Get nearby tours error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Internal server error",
         details: "Failed to fetch nearby tours"
       });
@@ -615,10 +648,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json(tour);
+      const ratingStats = await storage.getTourRatingStats(tourId);
+      res.json({ ...tour, ...ratingStats });
     } catch (error) {
       console.error('Get tour error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Internal server error",
         details: "Failed to fetch tour"
       });
@@ -644,10 +678,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json(tourWithStops);
+      const ratingStats = await storage.getTourRatingStats(tourId);
+      res.json({ ...tourWithStops, ...ratingStats });
     } catch (error) {
       console.error('Get tour details error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Internal server error",
         details: "Failed to fetch tour details"
       });
@@ -1149,10 +1184,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get user/creator profile data (GET /api/users/:id/profile)
-  app.get("/api/users/:id/profile", async (req, res) => {
+  app.get("/api/users/:id/profile", optionalAuth, async (req: any, res) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       if (isNaN(userId)) {
         return res.status(400).json({
           error: "Bad request",
@@ -1161,7 +1196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.getUser(userId);
-      
+
       if (!user) {
         return res.status(404).json({
           error: "Not found",
@@ -1171,10 +1206,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Remove password from response
       const { password, ...userProfile } = user;
-      res.json(userProfile);
+
+      // Add follower counts and isFollowing
+      const followerCount = await storage.getFollowerCount(userId);
+      const followingCount = await storage.getFollowingCount(userId);
+      let isFollowing = false;
+      if (req.user && req.user.id !== userId) {
+        isFollowing = await storage.isFollowing(req.user.id, userId);
+      }
+
+      res.json({ ...userProfile, followerCount, followingCount, isFollowing });
     } catch (error) {
       console.error('Get user profile error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Internal server error",
         details: "Failed to fetch user profile"
       });
@@ -1185,7 +1229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:id/tours", async (req, res) => {
     try {
       const creatorId = parseInt(req.params.id);
-      
+
       if (isNaN(creatorId)) {
         return res.status(400).json({
           error: "Bad request",
@@ -1193,11 +1237,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const tours = await storage.getToursByCreator(creatorId);
-      res.json(tours);
+      const creatorTours = await storage.getToursByCreator(creatorId);
+      const toursWithRatings = await enrichToursWithRatings(creatorTours);
+      res.json(toursWithRatings);
     } catch (error) {
       console.error('Get creator tours error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Internal server error",
         details: "Failed to fetch creator tours"
       });
@@ -2026,6 +2071,215 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Internal server error",
         details: "Failed to fetch creator tips total"
       });
+    }
+  });
+
+  // Follow a user (POST /api/users/:id/follow)
+  app.post("/api/users/:id/follow", authenticateToken, async (req: any, res) => {
+    try {
+      const followedId = parseInt(req.params.id);
+      if (isNaN(followedId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid user ID" });
+      }
+
+      if (followedId === req.user.id) {
+        return res.status(400).json({ error: "Bad request", details: "You cannot follow yourself" });
+      }
+
+      const targetUser = await storage.getUser(followedId);
+      if (!targetUser) {
+        return res.status(404).json({ error: "Not found", details: "User not found" });
+      }
+
+      const alreadyFollowing = await storage.isFollowing(req.user.id, followedId);
+      if (alreadyFollowing) {
+        return res.status(409).json({ error: "Conflict", details: "You are already following this user" });
+      }
+
+      const follow = await storage.followUser(req.user.id, followedId);
+      res.status(201).json({ message: "Now following user", follow });
+    } catch (error) {
+      console.error('Follow user error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to follow user" });
+    }
+  });
+
+  // Unfollow a user (DELETE /api/users/:id/follow)
+  app.delete("/api/users/:id/follow", authenticateToken, async (req: any, res) => {
+    try {
+      const followedId = parseInt(req.params.id);
+      if (isNaN(followedId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid user ID" });
+      }
+
+      const isFollowing = await storage.isFollowing(req.user.id, followedId);
+      if (!isFollowing) {
+        return res.status(404).json({ error: "Not found", details: "You are not following this user" });
+      }
+
+      await storage.unfollowUser(req.user.id, followedId);
+      res.json({ message: "Unfollowed user" });
+    } catch (error) {
+      console.error('Unfollow user error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to unfollow user" });
+    }
+  });
+
+  // Get followers for a user (GET /api/users/:id/followers)
+  app.get("/api/users/:id/followers", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid user ID" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "Not found", details: "User not found" });
+      }
+
+      const followersList = await storage.getFollowers(userId);
+      const count = await storage.getFollowerCount(userId);
+      res.json({ followers: followersList, count });
+    } catch (error) {
+      console.error('Get followers error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch followers" });
+    }
+  });
+
+  // Get following for a user (GET /api/users/:id/following)
+  app.get("/api/users/:id/following", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid user ID" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "Not found", details: "User not found" });
+      }
+
+      const followingList = await storage.getFollowing(userId);
+      const count = await storage.getFollowingCount(userId);
+      res.json({ following: followingList, count });
+    } catch (error) {
+      console.error('Get following error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch following" });
+    }
+  });
+
+  // Get feed of tours from followed creators (GET /api/feed)
+  app.get("/api/feed", authenticateToken, async (req: any, res) => {
+    try {
+      const feedTours = await storage.getFeedTours(req.user.id);
+      const toursWithRatings = await enrichToursWithRatings(feedTours);
+      res.json(toursWithRatings);
+    } catch (error) {
+      console.error('Get feed error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch feed" });
+    }
+  });
+
+  // Submit a review for a tour (POST /api/tours/:id/reviews)
+  app.post("/api/tours/:id/reviews", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const { rating, reviewText } = req.body;
+      const ratingNum = parseInt(rating);
+      if (!rating || isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        return res.status(400).json({ error: "Bad request", details: "Rating must be an integer between 1 and 5" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      // Can't review your own tour
+      if (tour.creatorId === req.user.id) {
+        return res.status(400).json({ error: "Bad request", details: "You cannot review your own tour" });
+      }
+
+      // Must have completed the tour
+      const completed = await storage.isTourCompleted(req.user.id, tourId);
+      if (!completed) {
+        return res.status(403).json({ error: "Forbidden", details: "You must complete the tour before leaving a review" });
+      }
+
+      // Check for existing review
+      const existing = await storage.getReview(req.user.id, tourId);
+      if (existing) {
+        return res.status(409).json({ error: "Conflict", details: "You have already reviewed this tour" });
+      }
+
+      const review = await storage.createReview(
+        req.user.id,
+        tourId,
+        ratingNum,
+        reviewText ? sanitizeText(reviewText) : undefined
+      );
+
+      res.status(201).json({ message: "Review submitted", review });
+    } catch (error) {
+      console.error('Create review error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to submit review" });
+    }
+  });
+
+  // Get reviews for a tour with pagination (GET /api/tours/:id/reviews)
+  app.get("/api/tours/:id/reviews", async (req, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      const reviewsList = await storage.getReviewsByTour(tourId, limit, offset);
+      const ratingStats = await storage.getTourRatingStats(tourId);
+
+      res.json({
+        reviews: reviewsList,
+        ...ratingStats,
+        limit,
+        offset,
+      });
+    } catch (error) {
+      console.error('Get reviews error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to fetch reviews" });
+    }
+  });
+
+  // Delete own review (DELETE /api/tours/:id/reviews)
+  app.delete("/api/tours/:id/reviews", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const existing = await storage.getReview(req.user.id, tourId);
+      if (!existing) {
+        return res.status(404).json({ error: "Not found", details: "You have not reviewed this tour" });
+      }
+
+      await storage.deleteReview(req.user.id, tourId);
+      res.json({ message: "Review deleted" });
+    } catch (error) {
+      console.error('Delete review error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to delete review" });
     }
   });
 

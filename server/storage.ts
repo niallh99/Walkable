@@ -1,6 +1,6 @@
-import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, tourActivityLog, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type TourActivityLog, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, tourActivityLog, followers, reviews, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type TourActivityLog, type Follower, type Review, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql, desc } from "drizzle-orm";
+import { eq, and, gt, sql, desc, inArray, avg } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -65,6 +65,24 @@ export interface IStorage {
   getCollaboratorsByTour(tourId: number): Promise<(Collaborator & { user: { id: number; username: string; profileImage: string | null } })[]>;
   getPendingInvitations(userId: number): Promise<(Collaborator & { tour: Tour; invitedBy: { id: number; username: string } })[]>;
   updateCollaboratorStatus(id: number, status: string): Promise<Collaborator>;
+
+  // Review methods
+  createReview(userId: number, tourId: number, rating: number, reviewText?: string): Promise<Review>;
+  getReview(userId: number, tourId: number): Promise<Review | undefined>;
+  getReviewsByTour(tourId: number, limit: number, offset: number): Promise<(Review & { user: { id: number; username: string; profileImage: string | null } })[]>;
+  deleteReview(userId: number, tourId: number): Promise<void>;
+  getTourRatingStats(tourId: number): Promise<{ averageRating: number; reviewCount: number }>;
+  getBulkTourRatingStats(tourIds: number[]): Promise<Map<number, { averageRating: number; reviewCount: number }>>;
+
+  // Follower methods
+  followUser(followerId: number, followedId: number): Promise<Follower>;
+  unfollowUser(followerId: number, followedId: number): Promise<void>;
+  isFollowing(followerId: number, followedId: number): Promise<boolean>;
+  getFollowers(userId: number): Promise<{ id: number; username: string; profileImage: string | null }[]>;
+  getFollowing(userId: number): Promise<{ id: number; username: string; profileImage: string | null }[]>;
+  getFollowerCount(userId: number): Promise<number>;
+  getFollowingCount(userId: number): Promise<number>;
+  getFeedTours(userId: number): Promise<Tour[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -553,6 +571,171 @@ export class DatabaseStorage implements IStorage {
       .where(eq(collaborators.id, id))
       .returning();
     return collab;
+  }
+
+  async createReview(userId: number, tourId: number, rating: number, reviewText?: string): Promise<Review> {
+    const [review] = await db
+      .insert(reviews)
+      .values({ userId, tourId, rating, reviewText: reviewText || null })
+      .returning();
+    return review;
+  }
+
+  async getReview(userId: number, tourId: number): Promise<Review | undefined> {
+    const [review] = await db
+      .select()
+      .from(reviews)
+      .where(and(eq(reviews.userId, userId), eq(reviews.tourId, tourId)));
+    return review || undefined;
+  }
+
+  async getReviewsByTour(tourId: number, limit: number, offset: number): Promise<(Review & { user: { id: number; username: string; profileImage: string | null } })[]> {
+    const results = await db
+      .select({
+        id: reviews.id,
+        userId: reviews.userId,
+        tourId: reviews.tourId,
+        rating: reviews.rating,
+        reviewText: reviews.reviewText,
+        createdAt: reviews.createdAt,
+        user: {
+          id: users.id,
+          username: users.username,
+          profileImage: users.profileImage,
+        },
+      })
+      .from(reviews)
+      .innerJoin(users, eq(reviews.userId, users.id))
+      .where(eq(reviews.tourId, tourId))
+      .orderBy(desc(reviews.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return results;
+  }
+
+  async deleteReview(userId: number, tourId: number): Promise<void> {
+    await db
+      .delete(reviews)
+      .where(and(eq(reviews.userId, userId), eq(reviews.tourId, tourId)));
+  }
+
+  async getTourRatingStats(tourId: number): Promise<{ averageRating: number; reviewCount: number }> {
+    const [result] = await db
+      .select({
+        averageRating: sql<string>`coalesce(avg(${reviews.rating}), '0')`,
+        reviewCount: sql<number>`cast(count(*) as integer)`,
+      })
+      .from(reviews)
+      .where(eq(reviews.tourId, tourId));
+    return {
+      averageRating: parseFloat(result?.averageRating || '0'),
+      reviewCount: result?.reviewCount || 0,
+    };
+  }
+
+  async getBulkTourRatingStats(tourIds: number[]): Promise<Map<number, { averageRating: number; reviewCount: number }>> {
+    const map = new Map<number, { averageRating: number; reviewCount: number }>();
+    if (tourIds.length === 0) return map;
+
+    const results = await db
+      .select({
+        tourId: reviews.tourId,
+        averageRating: sql<string>`coalesce(avg(${reviews.rating}), '0')`,
+        reviewCount: sql<number>`cast(count(*) as integer)`,
+      })
+      .from(reviews)
+      .where(inArray(reviews.tourId, tourIds))
+      .groupBy(reviews.tourId);
+
+    for (const row of results) {
+      map.set(row.tourId, {
+        averageRating: parseFloat(row.averageRating || '0'),
+        reviewCount: row.reviewCount || 0,
+      });
+    }
+    return map;
+  }
+
+  async followUser(followerId: number, followedId: number): Promise<Follower> {
+    const [follow] = await db
+      .insert(followers)
+      .values({ followerId, followedId })
+      .returning();
+    return follow;
+  }
+
+  async unfollowUser(followerId: number, followedId: number): Promise<void> {
+    await db
+      .delete(followers)
+      .where(and(eq(followers.followerId, followerId), eq(followers.followedId, followedId)));
+  }
+
+  async isFollowing(followerId: number, followedId: number): Promise<boolean> {
+    const [existing] = await db
+      .select()
+      .from(followers)
+      .where(and(eq(followers.followerId, followerId), eq(followers.followedId, followedId)));
+    return !!existing;
+  }
+
+  async getFollowers(userId: number): Promise<{ id: number; username: string; profileImage: string | null }[]> {
+    const results = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        profileImage: users.profileImage,
+      })
+      .from(followers)
+      .innerJoin(users, eq(followers.followerId, users.id))
+      .where(eq(followers.followedId, userId));
+    return results;
+  }
+
+  async getFollowing(userId: number): Promise<{ id: number; username: string; profileImage: string | null }[]> {
+    const results = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        profileImage: users.profileImage,
+      })
+      .from(followers)
+      .innerJoin(users, eq(followers.followedId, users.id))
+      .where(eq(followers.followerId, userId));
+    return results;
+  }
+
+  async getFollowerCount(userId: number): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(followers)
+      .where(eq(followers.followedId, userId));
+    return result?.count || 0;
+  }
+
+  async getFollowingCount(userId: number): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`cast(count(*) as integer)` })
+      .from(followers)
+      .where(eq(followers.followerId, userId));
+    return result?.count || 0;
+  }
+
+  async getFeedTours(userId: number): Promise<Tour[]> {
+    // Get IDs of users this user follows
+    const followedUsers = await db
+      .select({ id: followers.followedId })
+      .from(followers)
+      .where(eq(followers.followerId, userId));
+
+    if (followedUsers.length === 0) return [];
+
+    const followedIds = followedUsers.map(f => f.id);
+    const feedTours = await db
+      .select()
+      .from(tours)
+      .where(inArray(tours.creatorId, followedIds))
+      .orderBy(desc(tours.createdAt));
+    return feedTours;
   }
 }
 

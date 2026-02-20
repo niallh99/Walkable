@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Menu, X } from "lucide-react";
+import { User, Menu, X, Rss } from "lucide-react";
 import walkableLogo from "@assets/Walkable logo 2_1750512018721.png";
 
 export function Navbar() {
@@ -62,6 +62,16 @@ export function Navbar() {
                 Discover
               </span>
             </Link>
+            {user && (
+              <Link href="/feed">
+                <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                  location === "/feed" ? "border-b-2 border-white" : ""
+                }`}>
+                  <Rss className="h-3.5 w-3.5" />
+                  Feed
+                </span>
+              </Link>
+            )}
             {user?.role === 'creator' && (
               <Link href="/create-tour">
                 <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
@@ -163,6 +173,18 @@ export function Navbar() {
                   Discover
                 </span>
               </Link>
+              {user && (
+                <Link href="/feed">
+                  <span
+                    className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
+                      location === "/feed" ? "bg-white/10 rounded-md" : ""
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Feed
+                  </span>
+                </Link>
+              )}
               {user?.role === 'creator' && (
                 <Link href="/create-tour">
                   <span
@@ -177,7 +199,7 @@ export function Navbar() {
               )}
               {user && (
                 <Link href="/profile">
-                  <span 
+                  <span
                     className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
                       location === "/profile" ? "bg-white/10 rounded-md" : ""
                     }`}
