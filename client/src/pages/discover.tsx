@@ -20,6 +20,16 @@ interface UserLocation {
 
 type PriceFilter = 'all' | 'free' | 'paid';
 
+const CATEGORIES = ['history', 'culture', 'food', 'nature', 'architecture', 'art'] as const;
+const CATEGORY_EMOJI: Record<string, string> = {
+  history: '🏛️',
+  culture: '🎭',
+  food: '🍜',
+  nature: '🌿',
+  architecture: '🏙️',
+  art: '🎨',
+};
+
 function isTourFree(tour: Tour): boolean {
   return !tour.price || parseFloat(tour.price) === 0;
 }
@@ -36,25 +46,36 @@ export default function Discover() {
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
   // Active location is either search location or user location
   const activeLocation = searchLocation || userLocation;
 
-  // Fetch all tours
+  // Fetch all tours (re-fetches when category changes)
   const { data: allTours = [], isLoading: isLoadingTours } = useQuery<Tour[]>({
-    queryKey: ['/api/tours'],
+    queryKey: ['/api/tours', categoryFilter],
+    queryFn: async () => {
+      const url = categoryFilter ? `/api/tours?category=${categoryFilter}` : '/api/tours';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch tours');
+      return response.json();
+    },
   });
 
   // Fetch nearby tours when we have an active location
   const { data: nearbyTours = [], isLoading: isLoadingNearby } = useQuery<Tour[]>({
-    queryKey: ['/api/tours/nearby', activeLocation?.latitude, activeLocation?.longitude],
+    queryKey: ['/api/tours/nearby', activeLocation?.latitude, activeLocation?.longitude, categoryFilter],
     queryFn: async () => {
       if (!activeLocation) return [];
-      const response = await fetch(
-        `/api/tours/nearby?lat=${activeLocation.latitude}&lon=${activeLocation.longitude}&radius=10`
-      );
+      const params = new URLSearchParams({
+        lat: String(activeLocation.latitude),
+        lon: String(activeLocation.longitude),
+        radius: '10',
+        ...(categoryFilter ? { category: categoryFilter } : {}),
+      });
+      const response = await fetch(`/api/tours/nearby?${params}`);
       if (!response.ok) throw new Error('Failed to fetch nearby tours');
       return response.json();
     },
@@ -326,6 +347,34 @@ export default function Discover() {
                   </Button>
                 )}
               </div>
+
+              {/* Category chips */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  onClick={() => setCategoryFilter('')}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    categoryFilter === ''
+                      ? 'bg-walkable-cyan text-white'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:border-walkable-cyan hover:text-walkable-cyan'
+                  }`}
+                >
+                  All
+                </button>
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(categoryFilter === cat ? '' : cat)}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors capitalize ${
+                      categoryFilter === cat
+                        ? 'bg-walkable-cyan text-white'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:border-walkable-cyan hover:text-walkable-cyan'
+                    }`}
+                  >
+                    <span>{CATEGORY_EMOJI[cat]}</span>
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -435,7 +484,7 @@ export default function Discover() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {displayTours.length} tours found
+              {displayTours.length} {categoryFilter ? `${categoryFilter} ` : ''}tour{displayTours.length !== 1 ? 's' : ''} found
             </h2>
           </div>
           

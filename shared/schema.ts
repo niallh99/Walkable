@@ -30,12 +30,14 @@ export const tours = pgTable("tours", {
   previewVideoUrl: text("preview_video_url"),
   price: numeric("price", { precision: 10, scale: 2 }).default('0').notNull(),
   currency: text("currency").default('EUR').notNull(),
+  city: text("city"),
   creatorId: integer("creator_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   creatorIdIdx: index("tours_creator_id_idx").on(table.creatorId),
   locationIdx: index("tours_location_idx").on(table.latitude, table.longitude),
+  cityIdx: index("tours_city_idx").on(table.city),
 }));
 
 export const tourStops = pgTable("tour_stops", {
@@ -163,6 +165,22 @@ export const followers = pgTable("followers", {
   uniqueFollow: uniqueIndex("followers_unique_idx").on(table.followerId, table.followedId),
 }));
 
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  slug: text("slug").notNull().unique(),
+});
+
+export const tourTags = pgTable("tour_tags", {
+  id: serial("id").primaryKey(),
+  tourId: integer("tour_id").references(() => tours.id, { onDelete: 'cascade' }).notNull(),
+  categoryId: integer("category_id").references(() => categories.id, { onDelete: 'cascade' }).notNull(),
+}, (table) => ({
+  tourIdx: index("tour_tags_tour_id_idx").on(table.tourId),
+  categoryIdx: index("tour_tags_category_id_idx").on(table.categoryId),
+  uniqueTag: uniqueIndex("tour_tags_unique_idx").on(table.tourId, table.categoryId),
+}));
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
@@ -219,4 +237,6 @@ export type Collaborator = typeof collaborators.$inferSelect;
 export type TourActivityLog = typeof tourActivityLog.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type Follower = typeof followers.$inferSelect;
+export type Category = typeof categories.$inferSelect;
+export type TourTag = typeof tourTags.$inferSelect;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;

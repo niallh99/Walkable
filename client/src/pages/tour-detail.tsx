@@ -15,7 +15,7 @@ import { Footer } from "@/components/footer";
 import { InteractiveMap } from "@/components/interactive-map";
 import { useAuth } from "@/components/auth-context";
 import { WalkingMode } from "@/components/walking-mode";
-import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock, Footprints, Heart, ShoppingCart, Star } from "lucide-react";
+import { ArrowLeft, Play, Pause, Clock, MapPin, Volume2, Video, Loader2, CheckCircle2, Circle, PartyPopper, Lock, Footprints, Heart, ShoppingCart, Star, Share2, QrCode, Copy, Twitter, MessageCircle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Tour, TourStop } from "@shared/schema";
@@ -50,6 +50,8 @@ export default function TourDetail() {
   const [isWalkingMode, setIsWalkingMode] = useState(false);
   const [tipOpen, setTipOpen] = useState(false);
   const [customTipAmount, setCustomTipAmount] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const nextStopRef = useRef<HTMLDivElement>(null);
   const reviewsRef = useRef<HTMLDivElement>(null);
   const searchString = useSearch();
@@ -159,6 +161,47 @@ export default function TourDetail() {
       });
     },
   });
+
+  // QR code query — only fires when the modal is open
+  const { data: qrImageUrl, isLoading: isLoadingQr } = useQuery<string>({
+    queryKey: [`/api/tours/${id}/qr`],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/tours/${id}/qr`);
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        return data.qrCode || data.qrCodeUrl || data.url || '';
+      }
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    },
+    enabled: qrOpen && !!id,
+  });
+
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/tour/${id}` : '';
+
+  const handleShare = async () => {
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: tour?.title ?? 'Walking Tour',
+          text: `Check out "${tour?.title}" on Walkable`,
+          url: shareUrl,
+        });
+      } catch {
+        // user cancelled — do nothing
+      }
+    } else {
+      setShareOpen(true);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      toast({ title: 'Link copied!', description: 'Tour link copied to clipboard.' });
+      setShareOpen(false);
+    });
+  };
 
   // Reviews query
   const { data: reviewsData, isLoading: isLoadingReviews } = useQuery<{
@@ -506,7 +549,7 @@ export default function TourDetail() {
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 {/* Start Walking button — for free tours with stops */}
                 {user && hasStops && !isPaidTour && (
                   <Button
@@ -517,6 +560,62 @@ export default function TourDetail() {
                     Start Walking
                   </Button>
                 )}
+
+                {/* Share button */}
+                <Popover open={shareOpen} onOpenChange={setShareOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="border-gray-300 text-gray-700 hover:border-walkable-cyan hover:text-walkable-cyan"
+                      onClick={handleShare}
+                    >
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Share
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56" align="start">
+                    <p className="text-sm font-medium text-gray-900 mb-3">Share this tour</p>
+                    <div className="space-y-1">
+                      <button
+                        onClick={handleCopyLink}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                      >
+                        <Copy className="h-4 w-4 text-gray-500" />
+                        Copy link
+                      </button>
+                      <a
+                        href={`https://wa.me/?text=${encodeURIComponent(`Check out "${tour.title}" on Walkable: ${shareUrl}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setShareOpen(false)}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                      >
+                        <MessageCircle className="h-4 w-4 text-green-500" />
+                        WhatsApp
+                      </a>
+                      <a
+                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out "${tour.title}" on Walkable`)}&url=${encodeURIComponent(shareUrl)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setShareOpen(false)}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                      >
+                        <Twitter className="h-4 w-4 text-sky-500" />
+                        Twitter / X
+                      </a>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* QR code button */}
+                <Button
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:border-walkable-cyan hover:text-walkable-cyan"
+                  onClick={() => setQrOpen(true)}
+                >
+                  <QrCode className="h-4 w-4 mr-2" />
+                  QR Code
+                </Button>
 
                 {/* Tip button — for logged-in users viewing someone else's tour */}
                 {user && tour.creatorId !== user.id && (
@@ -962,6 +1061,39 @@ export default function TourDetail() {
                 </Link>
               </div>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code dialog */}
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="sm:max-w-xs text-center">
+          <div className="py-4">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Scan to open tour</h2>
+            <p className="text-sm text-gray-500 mb-5">{tour.title}</p>
+            {isLoadingQr ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin text-walkable-cyan" />
+              </div>
+            ) : qrImageUrl ? (
+              <>
+                <img
+                  src={qrImageUrl}
+                  alt={`QR code for ${tour.title}`}
+                  className="mx-auto w-48 h-48 rounded-lg border border-gray-200"
+                />
+                <a
+                  href={qrImageUrl}
+                  download={`walkable-tour-${id}.png`}
+                  className="mt-4 inline-flex items-center gap-2 text-sm text-walkable-cyan hover:underline"
+                >
+                  <Download className="h-4 w-4" />
+                  Download QR code
+                </a>
+              </>
+            ) : (
+              <p className="text-sm text-red-500 py-8">Failed to load QR code.</p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -1,6 +1,17 @@
-import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, tourActivityLog, followers, reviews, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type TourActivityLog, type Follower, type Review, type UpdateUserProfile } from "@shared/schema";
+import { users, tours, tourStops, completedTours, tourProgress, stripeAccounts, purchases, tips, collaborators, tourActivityLog, followers, reviews, categories, tourTags, type User, type InsertUser, type Tour, type InsertTour, type TourStop, type InsertTourStop, type CompletedTour, type TourProgress, type StripeAccount, type Purchase, type Tip, type Collaborator, type TourActivityLog, type Follower, type Review, type Category, type TourTag, type UpdateUserProfile } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, sql, desc, inArray, avg } from "drizzle-orm";
+import { eq, and, gt, gte, lte, sql, desc, inArray, avg, ilike } from "drizzle-orm";
+
+export interface TourFilters {
+  pricing?: 'free' | 'paid';
+  category?: string;
+  city?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  minRating?: number;
+  minDuration?: number;
+  maxDuration?: number;
+}
 
 export interface IStorage {
   // User methods
@@ -11,7 +22,7 @@ export interface IStorage {
   updateUserProfile(id: number, updateData: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User>;
   
   // Tour methods
-  getAllTours(pricing?: 'free' | 'paid'): Promise<Tour[]>;
+  getAllTours(filters?: TourFilters): Promise<Tour[]>;
   getTour(id: number): Promise<Tour | undefined>;
   getTourWithStops(id: number): Promise<(Tour & { stops: TourStop[]; collaborators: (Collaborator & { user: { id: number; username: string; profileImage: string | null } })[] }) | undefined>;
   createTour(insertTour: InsertTour & { creatorId: number }): Promise<Tour>;
@@ -83,6 +94,15 @@ export interface IStorage {
   getFollowerCount(userId: number): Promise<number>;
   getFollowingCount(userId: number): Promise<number>;
   getFeedTours(userId: number): Promise<Tour[]>;
+
+  // Category/tag methods
+  getAllCategories(): Promise<Category[]>;
+  getCategoriesWithCounts(): Promise<(Category & { tourCount: number })[]>;
+  addTourTag(tourId: number, categoryId: number): Promise<TourTag>;
+  removeTourTag(tourId: number, categoryId: number): Promise<void>;
+  getTagsForTour(tourId: number): Promise<Category[]>;
+  getBulkTourTags(tourIds: number[]): Promise<Map<number, Category[]>>;
+  seedCategories(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -121,14 +141,57 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getAllTours(pricing?: 'free' | 'paid'): Promise<Tour[]> {
-    if (pricing === 'free') {
-      return await db.select().from(tours).where(eq(tours.price, '0'));
+  async getAllTours(filters?: TourFilters): Promise<Tour[]> {
+    const conditions: any[] = [];
+
+    if (filters?.pricing === 'free') {
+      conditions.push(eq(tours.price, '0'));
+    } else if (filters?.pricing === 'paid') {
+      conditions.push(gt(tours.price, '0'));
     }
-    if (pricing === 'paid') {
-      return await db.select().from(tours).where(gt(tours.price, '0'));
+
+    if (filters?.minPrice !== undefined) {
+      conditions.push(gte(tours.price, String(filters.minPrice)));
     }
-    return await db.select().from(tours);
+    if (filters?.maxPrice !== undefined) {
+      conditions.push(lte(tours.price, String(filters.maxPrice)));
+    }
+
+    if (filters?.city) {
+      conditions.push(ilike(tours.city, `%${filters.city}%`));
+    }
+
+    if (filters?.minDuration !== undefined) {
+      conditions.push(gte(tours.duration, filters.minDuration));
+    }
+    if (filters?.maxDuration !== undefined) {
+      conditions.push(lte(tours.duration, filters.maxDuration));
+    }
+
+    if (filters?.category) {
+      // Filter by category slug via tourTags junction
+      const matchingTourIds = db
+        .select({ tourId: tourTags.tourId })
+        .from(tourTags)
+        .innerJoin(categories, eq(tourTags.categoryId, categories.id))
+        .where(eq(categories.slug, filters.category));
+      conditions.push(inArray(tours.id, matchingTourIds));
+    }
+
+    if (filters?.minRating !== undefined) {
+      // Filter tours with avg rating >= minRating
+      const qualifyingTourIds = db
+        .select({ tourId: reviews.tourId })
+        .from(reviews)
+        .groupBy(reviews.tourId)
+        .having(gte(sql`avg(${reviews.rating})`, filters.minRating));
+      conditions.push(inArray(tours.id, qualifyingTourIds));
+    }
+
+    if (conditions.length === 0) {
+      return await db.select().from(tours);
+    }
+    return await db.select().from(tours).where(and(...conditions));
   }
 
   async getTour(id: number): Promise<Tour | undefined> {
@@ -736,6 +799,99 @@ export class DatabaseStorage implements IStorage {
       .where(inArray(tours.creatorId, followedIds))
       .orderBy(desc(tours.createdAt));
     return feedTours;
+  }
+
+  async getAllCategories(): Promise<Category[]> {
+    return await db.select().from(categories).orderBy(categories.name);
+  }
+
+  async getCategoriesWithCounts(): Promise<(Category & { tourCount: number })[]> {
+    const results = await db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        slug: categories.slug,
+        tourCount: sql<number>`cast(count(${tourTags.tourId}) as integer)`,
+      })
+      .from(categories)
+      .leftJoin(tourTags, eq(categories.id, tourTags.categoryId))
+      .groupBy(categories.id, categories.name, categories.slug)
+      .orderBy(categories.name);
+    return results;
+  }
+
+  async addTourTag(tourId: number, categoryId: number): Promise<TourTag> {
+    const [tag] = await db
+      .insert(tourTags)
+      .values({ tourId, categoryId })
+      .returning();
+    return tag;
+  }
+
+  async removeTourTag(tourId: number, categoryId: number): Promise<void> {
+    await db
+      .delete(tourTags)
+      .where(and(eq(tourTags.tourId, tourId), eq(tourTags.categoryId, categoryId)));
+  }
+
+  async getTagsForTour(tourId: number): Promise<Category[]> {
+    const results = await db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        slug: categories.slug,
+      })
+      .from(tourTags)
+      .innerJoin(categories, eq(tourTags.categoryId, categories.id))
+      .where(eq(tourTags.tourId, tourId));
+    return results;
+  }
+
+  async getBulkTourTags(tourIds: number[]): Promise<Map<number, Category[]>> {
+    const map = new Map<number, Category[]>();
+    if (tourIds.length === 0) return map;
+
+    const results = await db
+      .select({
+        tourId: tourTags.tourId,
+        id: categories.id,
+        name: categories.name,
+        slug: categories.slug,
+      })
+      .from(tourTags)
+      .innerJoin(categories, eq(tourTags.categoryId, categories.id))
+      .where(inArray(tourTags.tourId, tourIds));
+
+    for (const row of results) {
+      const existing = map.get(row.tourId) || [];
+      existing.push({ id: row.id, name: row.name, slug: row.slug });
+      map.set(row.tourId, existing);
+    }
+    return map;
+  }
+
+  async seedCategories(): Promise<void> {
+    const seedData = [
+      { name: 'History', slug: 'history' },
+      { name: 'Food', slug: 'food' },
+      { name: 'Architecture', slug: 'architecture' },
+      { name: 'Nature', slug: 'nature' },
+      { name: 'Hidden Gems', slug: 'hidden-gems' },
+      { name: 'Nightlife', slug: 'nightlife' },
+      { name: 'Art', slug: 'art' },
+      { name: 'Music', slug: 'music' },
+      { name: 'Photography', slug: 'photography' },
+    ];
+
+    for (const cat of seedData) {
+      const [existing] = await db
+        .select()
+        .from(categories)
+        .where(eq(categories.slug, cat.slug));
+      if (!existing) {
+        await db.insert(categories).values(cat);
+      }
+    }
   }
 }
 
