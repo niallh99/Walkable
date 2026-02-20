@@ -13,6 +13,8 @@ import rateLimit from "express-rate-limit";
 import xss from "xss";
 import { config } from "./config";
 import { getStripe, isStripeConfigured } from "./stripe";
+import QRCode from "qrcode";
+import type { TourFilters } from "./storage";
 
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = "7d";
