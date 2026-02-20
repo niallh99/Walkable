@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle, Loader2, Users, UserPlus, X, Crown, Eye } from 'lucide-react';
+import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle, Loader2, Users, UserPlus, X, Crown, Eye, CheckCircle2 } from 'lucide-react';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { useToast } from '@/hooks/use-toast';
@@ -129,6 +129,10 @@ export default function CreateTourNew() {
   const urlParams = new URLSearchParams(search);
   const editTourId = urlParams.get('edit');
   const isEditMode = !!editTourId;
+  const tabParam = urlParams.get('tab');
+
+  // Post-create success state
+  const [createdTour, setCreatedTour] = useState<{ id: number; title: string } | null>(null);
 
   // Collaborators state
   const [inviteUsername, setInviteUsername] = useState('');
@@ -273,16 +277,20 @@ export default function CreateTourNew() {
     onSuccess: (data: any) => {
       setIsCreating(false);
       queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/details`] });
-      // Invalidate user's tours list to show the new tour on profile page
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'tours'] });
       }
-      toast({
-        title: isEditMode ? "Tour updated successfully!" : "Tour created successfully!",
-        description: isEditMode ? "Your tour changes have been saved." : "Your tour is now live and ready for discovery.",
-      });
-      setLocation('/profile');
+      if (isEditMode) {
+        queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/details`] });
+        toast({
+          title: "Tour updated successfully!",
+          description: "Your tour changes have been saved.",
+        });
+        setLocation('/profile');
+      } else {
+        // Show in-page success screen so the creator can invite collaborators
+        setCreatedTour({ id: data.id, title: data.title });
+      }
     },
     onError: (error: any) => {
       setIsCreating(false);
@@ -470,6 +478,50 @@ export default function CreateTourNew() {
       </div>
     );
   };
+
+  // Success screen shown after a new tour is created
+  const renderSuccessScreen = (tour: { id: number; title: string }) => (
+    <div className="max-w-lg mx-auto text-center py-10 space-y-6">
+      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+        <CheckCircle2 className="h-10 w-10 text-green-500" />
+      </div>
+
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Tour Created!</h1>
+        <p className="text-gray-600">
+          <span className="font-semibold">{tour.title}</span> is now live and
+          ready for discovery.
+        </p>
+      </div>
+
+      <div className="bg-walkable-cyan/10 border border-walkable-cyan/30 rounded-xl p-4 text-sm text-gray-700">
+        <p className="font-medium text-walkable-cyan mb-1">Want to build it together?</p>
+        <p>Invite co-creators to help add stops, record audio, or review your tour before it goes public.</p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+        <Button
+          onClick={() => setLocation(`/create-tour?edit=${tour.id}&tab=collaborators`)}
+          className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white flex items-center gap-2"
+        >
+          <UserPlus className="h-4 w-4" />
+          Invite Collaborators
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setLocation(`/tour/${tour.id}`)}
+        >
+          View Tour
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => setLocation('/profile')}
+        >
+          Back to Profile
+        </Button>
+      </div>
+    </div>
+  );
 
   // Step 1: Tour Details
   const handleCoverImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1332,8 +1384,12 @@ export default function CreateTourNew() {
 
       <div className="pt-24 py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          {isEditMode ? (
-            <Tabs defaultValue="tour">
+          {!isEditMode && createdTour ? (
+            <div className="bg-white rounded-lg shadow-sm p-8">
+              {renderSuccessScreen(createdTour)}
+            </div>
+          ) : isEditMode ? (
+            <Tabs defaultValue={tabParam === 'collaborators' ? 'collaborators' : 'tour'}>
               <TabsList className="mb-6 w-full max-w-xs mx-auto grid grid-cols-2">
                 <TabsTrigger value="tour">Edit Tour</TabsTrigger>
                 <TabsTrigger value="collaborators" className="flex items-center gap-1">
