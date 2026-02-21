@@ -2531,6 +2531,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Publish a tour (PUT /api/tours/:id/publish)
+  app.put("/api/tours/:id/publish", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      if (tour.creatorId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "Only the tour owner can publish a tour" });
+      }
+
+      if (tour.status === 'published') {
+        return res.status(400).json({ error: "Bad request", details: "Tour is already published" });
+      }
+
+      const updated = await storage.updateTourFields(tourId, { status: 'published' });
+      res.json({ message: "Tour published", tour: updated });
+    } catch (error) {
+      console.error('Publish tour error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to publish tour" });
+    }
+  });
+
+  // Unpublish a tour (PUT /api/tours/:id/unpublish)
+  app.put("/api/tours/:id/unpublish", authenticateToken, async (req: any, res) => {
+    try {
+      const tourId = parseInt(req.params.id);
+      if (isNaN(tourId)) {
+        return res.status(400).json({ error: "Bad request", details: "Invalid tour ID" });
+      }
+
+      const tour = await storage.getTour(tourId);
+      if (!tour) {
+        return res.status(404).json({ error: "Not found", details: "Tour not found" });
+      }
+
+      if (tour.creatorId !== req.user.id) {
+        return res.status(403).json({ error: "Forbidden", details: "Only the tour owner can unpublish a tour" });
+      }
+
+      if (tour.status === 'draft') {
+        return res.status(400).json({ error: "Bad request", details: "Tour is already a draft" });
+      }
+
+      const updated = await storage.updateTourFields(tourId, { status: 'draft' });
+      res.json({ message: "Tour unpublished", tour: updated });
+    } catch (error) {
+      console.error('Unpublish tour error:', error);
+      res.status(500).json({ error: "Internal server error", details: "Failed to unpublish tour" });
+    }
+  });
+
   // Seed categories on startup (idempotent)
   storage.seedCategories().catch(err => console.error('Failed to seed categories:', err));
 
