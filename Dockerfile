@@ -3,7 +3,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source
 COPY . .
@@ -17,7 +17,7 @@ WORKDIR /app
 
 # Copy package files and install production deps only
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy built output from build stage
 COPY --from=base /app/dist ./dist
