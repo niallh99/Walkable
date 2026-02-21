@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic } from "./vite";
+import { serveStatic } from "./static";
 import { logger } from "./logger";
 import { config } from "./config";
 
@@ -85,6 +85,7 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     serveStatic(app);
