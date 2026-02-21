@@ -31,6 +31,7 @@ export const tours = pgTable("tours", {
   price: numeric("price", { precision: 10, scale: 2 }).default('0').notNull(),
   currency: text("currency").default('EUR').notNull(),
   city: text("city"),
+  status: text("status").default('draft').notNull(), // 'draft' | 'published'
   creatorId: integer("creator_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -38,6 +39,7 @@ export const tours = pgTable("tours", {
   creatorIdIdx: index("tours_creator_id_idx").on(table.creatorId),
   locationIdx: index("tours_location_idx").on(table.latitude, table.longitude),
   cityIdx: index("tours_city_idx").on(table.city),
+  statusIdx: index("tours_status_idx").on(table.status),
 }));
 
 export const tourStops = pgTable("tour_stops", {

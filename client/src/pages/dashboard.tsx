@@ -128,7 +128,7 @@ export default function Dashboard() {
         ratedTours.length
       : null;
 
-  const formatEarnings = (amount: number) => `€${amount.toFixed(2)}`;
+  const formatEarnings = (amount: number | string) => `€${Number(amount || 0).toFixed(2)}`;
 
   // ── Not logged in ──
   if (!user) {

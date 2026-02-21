@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera, Sparkles, CreditCard, CheckCircle, ExternalLink, Bell, UserCheck, UserX, Crown, Eye } from "lucide-react";
+import { User, MapPin, Clock, Edit2, Loader2, Calendar, Volume2, Camera, Sparkles, CreditCard, CheckCircle, ExternalLink, Bell, UserCheck, UserX, Crown, Eye, Globe, EyeOff } from "lucide-react";
 import { Tour, UpdateUserProfile, UserRole } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -223,6 +223,30 @@ export default function Profile() {
     },
     onError: (error: Error) => {
       toast({ title: 'Failed to respond', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Publish / unpublish a tour
+  const publishTourMutation = useMutation({
+    mutationFn: async ({ tourId, status }: { tourId: number; status: 'draft' | 'published' }) => {
+      const response = await apiRequest(`/api/tours/${tourId}`, {
+        method: 'PUT',
+        body: { status },
+      });
+      return response.json();
+    },
+    onSuccess: (_, { status }) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users', user?.id, 'tours'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
+      toast({
+        title: status === 'published' ? 'Tour published!' : 'Tour moved to draft',
+        description: status === 'published'
+          ? 'Your tour is now live and visible to everyone.'
+          : 'Your tour is now a draft and only visible to you.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Status update failed', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -610,8 +634,19 @@ export default function Profile() {
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-medium text-gray-900 truncate">{tour.title}</h4>
                           <p className="text-sm text-gray-600 mb-2 line-clamp-2">{tour.description}</p>
-                          <div className="flex items-center space-x-4 text-xs text-gray-500">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                             <Badge variant="outline">{tour.category}</Badge>
+                            {(tour as any).status !== 'published' ? (
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border border-amber-200 gap-0.5">
+                                <EyeOff className="h-2.5 w-2.5" />
+                                Draft
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border border-green-200 gap-0.5">
+                                <Globe className="h-2.5 w-2.5" />
+                                Published
+                              </Badge>
+                            )}
                             {tour.duration && (
                               <div className="flex items-center space-x-1">
                                 <Clock className="h-3 w-3" />
@@ -624,16 +659,46 @@ export default function Profile() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 flex flex-col gap-1.5 items-end">
                           <Button
                             variant="outline"
                             size="sm"
                             className="border-walkable-cyan text-walkable-cyan hover:bg-walkable-cyan hover:text-white"
                             onClick={() => window.location.href = `/create-tour?edit=${tour.id}`}
                           >
-                            <Edit2 className="h-4 w-4 mr-1" />
-                            Edit Tour
+                            <Edit2 className="h-3 w-3 mr-1" />
+                            Edit
                           </Button>
+                          {(tour as any).status !== 'published' ? (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              disabled={publishTourMutation.isPending}
+                              onClick={() => publishTourMutation.mutate({ tourId: tour.id, status: 'published' })}
+                            >
+                              {publishTourMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              ) : (
+                                <Globe className="h-3 w-3 mr-1" />
+                              )}
+                              Publish
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-400 text-amber-600 hover:bg-amber-50"
+                              disabled={publishTourMutation.isPending}
+                              onClick={() => publishTourMutation.mutate({ tourId: tour.id, status: 'draft' })}
+                            >
+                              {publishTourMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                              ) : (
+                                <EyeOff className="h-3 w-3 mr-1" />
+                              )}
+                              Unpublish
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

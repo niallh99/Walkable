@@ -152,7 +152,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllTours(filters?: TourFilters): Promise<Tour[]> {
-    const conditions: any[] = [];
+    const conditions: any[] = [eq(tours.status, 'published')];
 
     if (filters?.pricing === 'free') {
       conditions.push(eq(tours.price, '0'));
@@ -198,9 +198,6 @@ export class DatabaseStorage implements IStorage {
       conditions.push(inArray(tours.id, qualifyingTourIds));
     }
 
-    if (conditions.length === 0) {
-      return await db.select().from(tours);
-    }
     return await db.select().from(tours).where(and(...conditions));
   }
 
@@ -253,7 +250,7 @@ export class DatabaseStorage implements IStorage {
   async getNearbyTours(lat: number, lon: number, radiusKm: number): Promise<Tour[]> {
     // Simple distance calculation using Haversine formula
     // For production, consider using PostGIS for more accurate geospatial queries
-    const toursResult = await db.select().from(tours);
+    const toursResult = await db.select().from(tours).where(eq(tours.status, 'published'));
     
     return toursResult.filter(tour => {
       const tourLat = parseFloat(tour.latitude);
@@ -806,7 +803,7 @@ export class DatabaseStorage implements IStorage {
     const feedTours = await db
       .select()
       .from(tours)
-      .where(inArray(tours.creatorId, followedIds))
+      .where(and(inArray(tours.creatorId, followedIds), eq(tours.status, 'published')))
       .orderBy(desc(tours.createdAt));
     return feedTours;
   }

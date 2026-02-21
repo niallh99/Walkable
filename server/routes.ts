@@ -663,6 +663,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Draft tours visible only to owner and collaborators
+      if (tour.status === 'draft') {
+        const isOwner = req.user?.id === tour.creatorId;
+        let isCollaborator = false;
+        if (req.user && !isOwner) {
+          const collab = await storage.getCollaborator(tourId, req.user.id);
+          isCollaborator = !!(collab && collab.status === 'accepted');
+        }
+        if (!isOwner && !isCollaborator) {
+          return res.status(404).json({ error: "Not found", details: "Tour not found" });
+        }
+      }
+
       // Record view (fire-and-forget)
       storage.recordTourView(tourId, req.user?.id).catch(() => {});
 
@@ -681,7 +694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get tour with stops by ID
-  app.get("/api/tours/:id/details", async (req, res) => {
+  app.get("/api/tours/:id/details", optionalAuth, async (req: any, res) => {
     try {
       const tourId = parseInt(req.params.id);
       if (isNaN(tourId)) {
@@ -697,6 +710,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "Not found",
           details: "Tour not found"
         });
+      }
+
+      // Draft tours visible only to owner and collaborators
+      if (tourWithStops.status === 'draft') {
+        const isOwner = req.user?.id === tourWithStops.creatorId;
+        let isCollaborator = false;
+        if (req.user && !isOwner) {
+          const collab = await storage.getCollaborator(tourId, req.user.id);
+          isCollaborator = !!(collab && collab.status === 'accepted');
+        }
+        if (!isOwner && !isCollaborator) {
+          return res.status(404).json({ error: "Not found", details: "Tour not found" });
+        }
       }
 
       const [ratingStats, tags] = await Promise.all([

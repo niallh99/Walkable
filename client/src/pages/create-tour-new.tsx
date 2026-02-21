@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle, Loader2, Users, UserPlus, X, Crown, Eye, CheckCircle2 } from 'lucide-react';
+import { MapPin, Upload, Camera, Mic, Edit, Trash2, GripVertical, ArrowUp, ArrowDown, AlertTriangle, Loader2, Users, UserPlus, X, Crown, Eye, CheckCircle2, Globe, EyeOff } from 'lucide-react';
 import { InteractiveMap } from '@/components/interactive-map';
 import { LocationSearch } from '@/components/location-search';
 import { useToast } from '@/hooks/use-toast';
@@ -187,6 +187,30 @@ export default function CreateTourNew() {
     },
     onError: (error: any) => {
       toast({ title: 'Remove failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // Publish / unpublish mutation (edit mode only)
+  const publishStatusMutation = useMutation({
+    mutationFn: async (status: 'draft' | 'published') => {
+      const response = await apiRequest(`/api/tours/${editTourId}`, {
+        method: 'PUT',
+        body: { status },
+      });
+      return response.json();
+    },
+    onSuccess: (_, status) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/tours/${editTourId}/details`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tours'] });
+      toast({
+        title: status === 'published' ? 'Tour published!' : 'Tour moved to draft',
+        description: status === 'published'
+          ? 'Your tour is now live and visible to everyone.'
+          : 'Your tour is now a draft and only visible to you.',
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Status update failed', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -489,14 +513,16 @@ export default function CreateTourNew() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Tour Created!</h1>
         <p className="text-gray-600">
-          <span className="font-semibold">{tour.title}</span> is now live and
-          ready for discovery.
+          <span className="font-semibold">{tour.title}</span> has been saved as a draft.
         </p>
       </div>
 
-      <div className="bg-walkable-cyan/10 border border-walkable-cyan/30 rounded-xl p-4 text-sm text-gray-700">
-        <p className="font-medium text-walkable-cyan mb-1">Want to build it together?</p>
-        <p>Invite co-creators to help add stops, record audio, or review your tour before it goes public.</p>
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-gray-700 text-left">
+        <p className="font-medium text-amber-700 mb-1 flex items-center gap-1.5">
+          <EyeOff className="h-4 w-4" />
+          Your tour starts as a draft
+        </p>
+        <p>Draft tours are only visible to you and your collaborators — perfect for refining before going live. Invite co-creators below, then publish from the edit page when you're ready.</p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
@@ -1404,6 +1430,51 @@ export default function CreateTourNew() {
               </TabsList>
 
               <TabsContent value="tour">
+                {/* Publish status banner */}
+                {existingTour && (
+                  <div className={`flex items-center justify-between px-4 py-3 mb-5 rounded-lg border ${
+                    (existingTour as any).status === 'published'
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-amber-50 border-amber-200'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {(existingTour as any).status === 'published' ? (
+                        <>
+                          <Globe className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-700">Published — visible to everyone</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="h-4 w-4 text-amber-600" />
+                          <span className="text-sm font-medium text-amber-700">Draft — only visible to you</span>
+                        </>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={publishStatusMutation.isPending}
+                      onClick={() =>
+                        publishStatusMutation.mutate(
+                          (existingTour as any).status === 'published' ? 'draft' : 'published'
+                        )
+                      }
+                      className={
+                        (existingTour as any).status === 'published'
+                          ? 'border-amber-400 text-amber-700 hover:bg-amber-50 h-7 text-xs'
+                          : 'border-green-500 text-green-700 hover:bg-green-50 h-7 text-xs'
+                      }
+                    >
+                      {publishStatusMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (existingTour as any).status === 'published' ? (
+                        'Move to Draft'
+                      ) : (
+                        'Publish Tour'
+                      )}
+                    </Button>
+                  </div>
+                )}
                 <StepProgress currentStep={currentStep} />
                 <div className="bg-white rounded-lg shadow-sm p-8">
                   {currentStep === 1 && renderStep1()}
