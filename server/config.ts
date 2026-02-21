@@ -3,7 +3,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
-  GOOGLE_API_KEY: z.string().min(1, 'GOOGLE_API_KEY is required'),
+  GOOGLE_API_KEY: z.string().default(''),
   CORS_ORIGIN: z.string().optional(),
   DISABLE_UPLOADS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
