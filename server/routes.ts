@@ -17,6 +17,7 @@ import crypto from "crypto";
 import QRCode from "qrcode";
 import type { TourFilters } from "./storage";
 import { isEmailConfigured, sendPasswordResetEmail } from "./email";
+import { isR2Configured, uploadToR2 } from "./r2";
 
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = "7d";
@@ -65,117 +66,55 @@ const uploadLimiter = rateLimit({
   message: { error: "Too many uploads", details: "Please try again later" }
 });
 
-// Ensure uploads directory exists
+// Ensure uploads directory exists (local fallback)
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure multer for audio file uploads
-const audioStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'audio-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const useR2 = isR2Configured();
 
-const audioUpload = multer({ 
-  storage: audioStorage,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/ogg', 'audio/x-m4a', 'audio/aac'];
-    console.log('Audio file mimetype:', file.mimetype);
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only audio files are allowed.'));
-    }
-  }
-});
+// Use memoryStorage for R2 (gives us buffer), diskStorage for local fallback
+function makeDiskStorage(prefix: string) {
+  return multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, prefix + '-' + uniqueSuffix + path.extname(file.originalname));
+    },
+  });
+}
 
-// Configure multer for video file uploads
-const videoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'video-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+function makeUpload(prefix: string, maxSize: number, allowedTypes: string[]) {
+  return multer({
+    storage: useR2 ? multer.memoryStorage() : makeDiskStorage(prefix),
+    limits: { fileSize: maxSize },
+    fileFilter: (_req, file, cb) => {
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type.'));
+      }
+    },
+  });
+}
 
-const videoUpload = multer({ 
-  storage: videoStorage,
-  limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['video/mp4', 'video/mov', 'video/webm', 'video/quicktime'];
-    console.log('Video file mimetype:', file.mimetype);
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only video files (MP4, MOV, WebM) are allowed.'));
-    }
-  }
-});
+const audioTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/ogg', 'audio/x-m4a', 'audio/aac'];
+const videoTypes = ['video/mp4', 'video/mov', 'video/webm', 'video/quicktime'];
+const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
 
-// Configure multer for cover image uploads
-const imageStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'cover-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+const audioUpload = makeUpload('audio', 50 * 1024 * 1024, audioTypes);
+const videoUpload = makeUpload('video', 100 * 1024 * 1024, videoTypes);
+const imageUpload = makeUpload('cover', 10 * 1024 * 1024, imageTypes);
+const profileImageUpload = makeUpload('profile', 5 * 1024 * 1024, imageTypes);
 
-const imageUpload = multer({ 
-  storage: imageStorage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only image files are allowed.'));
-    }
+/** Resolve file URL: upload to R2 if configured, else use local path */
+async function resolveFileUrl(file: Express.Multer.File, folder: string): Promise<string> {
+  if (useR2 && file.buffer) {
+    return await uploadToR2(file.buffer, file.originalname, file.mimetype, folder);
   }
-});
-
-// Configure multer for profile image uploads
-const profileImageStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const profileImageUpload = multer({
-  storage: profileImageStorage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only image files are allowed.'));
-    }
-  }
-});
+  return `/uploads/${file.filename}`;
+}
 
 // Middleware to verify JWT token
 const authenticateToken = async (req: any, res: any, next: any) => {
@@ -876,12 +815,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const fileUrl = `/uploads/${req.file.filename}`;
-      
+      const fileUrl = await resolveFileUrl(req.file, 'covers');
+
       res.json({
         message: "Cover image uploaded successfully",
         imageUrl: fileUrl,
-        filename: req.file.filename,
+        filename: req.file.originalname,
         originalName: req.file.originalname,
         size: req.file.size
       });
@@ -919,13 +858,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Return the file URL for storage in tour data
-      const fileUrl = `/uploads/${req.file.filename}`;
-      
+      const fileUrl = await resolveFileUrl(req.file, 'audio');
+
       res.json({
         message: "Audio file uploaded successfully",
         audioUrl: fileUrl,
-        filename: req.file.filename,
+        filename: req.file.originalname,
         originalName: req.file.originalname,
         size: req.file.size
       });
@@ -963,13 +901,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Return the file URL for storage in tour data
-      const fileUrl = `/uploads/${req.file.filename}`;
-      
+      const fileUrl = await resolveFileUrl(req.file, 'video');
+
       res.json({
         message: "Video file uploaded successfully",
         videoUrl: fileUrl,
-        filename: req.file.filename,
+        filename: req.file.originalname,
         originalName: req.file.originalname,
         size: req.file.size
       });
@@ -1017,7 +954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Bad request", details: "No audio file provided" });
       }
 
-      const fileUrl = `/uploads/${req.file.filename}`;
+      const fileUrl = await resolveFileUrl(req.file, 'preview-audio');
       const updatedTour = await storage.updateTourFields(tourId, { previewAudioUrl: fileUrl });
 
       res.json({
@@ -1057,7 +994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Bad request", details: "No video file provided" });
       }
 
-      const fileUrl = `/uploads/${req.file.filename}`;
+      const fileUrl = await resolveFileUrl(req.file, 'preview-video');
       const updatedTour = await storage.updateTourFields(tourId, { previewVideoUrl: fileUrl });
 
       res.json({
@@ -1198,7 +1135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const fileUrl = `/uploads/${req.file.filename}`;
+      const fileUrl = await resolveFileUrl(req.file, 'profiles');
 
       // Update user's profileImage in the database
       const updatedUser = await storage.updateUserProfile(req.user.id, { profileImage: fileUrl });
