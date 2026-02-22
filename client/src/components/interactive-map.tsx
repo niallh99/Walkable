@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Tour } from '@shared/schema';
@@ -72,26 +72,21 @@ interface InteractiveMapProps {
   showRoute?: boolean;
 }
 
-// Component to update map view when any location changes
+// Component to update map view when location or stops change.
+// No "initialized" guard — we want the map to pan whenever activeLocation changes
+// (e.g. user searches a new city) so each search result is properly centred.
 function MapUpdater({ activeLocation, tourStops }: { activeLocation?: UserLocation; tourStops?: TourStop[] }) {
   const map = useMap();
-  const [hasInitialized, setHasInitialized] = useState(false);
-  
+
   useEffect(() => {
-    // Only update once to prevent infinite loops
-    if (hasInitialized) return;
-    
     if (tourStops && tourStops.length > 0) {
-      // If we have tour stops, fit the map to show all stops
       const bounds = L.latLngBounds(tourStops.map(stop => [stop.latitude, stop.longitude]));
       map.fitBounds(bounds, { padding: [20, 20] });
-      setHasInitialized(true);
     } else if (activeLocation) {
       map.setView([activeLocation.latitude, activeLocation.longitude], 13);
-      setHasInitialized(true);
     }
   }, [activeLocation, tourStops, map]);
-  
+
   return null;
 }
 

@@ -234,7 +234,7 @@ export default function Profile() {
   // Publish / unpublish a tour
   const publishTourMutation = useMutation({
     mutationFn: async ({ tourId, status }: { tourId: number; status: 'draft' | 'published' }) => {
-      const response = await apiRequest(`/api/tours/${tourId}`, {
+      const response = await apiRequest(`/api/tours/${tourId}/publish`, {
         method: 'PUT',
         body: { status },
       });
