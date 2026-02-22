@@ -162,10 +162,15 @@ export default function Profile() {
   // Stripe Connect onboarding mutation
   const stripeConnectMutation = useMutation({
     mutationFn: async () => {
+      // Pass an empty body so apiRequest sets Content-Type: application/json,
+      // which some Express middleware requires to parse the request correctly.
       const response = await apiRequest('/api/stripe/connect', {
         method: 'POST',
+        body: {},
       });
-      return response.json();
+      const data = await response.json();
+      if (!data.url) throw new Error('No onboarding URL returned from server.');
+      return data as { url: string };
     },
     onSuccess: (data: { url: string }) => {
       window.location.href = data.url;
@@ -173,7 +178,7 @@ export default function Profile() {
     onError: (error: Error) => {
       toast({
         title: "Stripe setup failed",
-        description: error.message,
+        description: error.message.replace(/^\d+:\s*/, ''), // strip leading "500: "
         variant: "destructive",
       });
     },

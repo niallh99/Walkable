@@ -65,7 +65,12 @@ export default function TourDetail() {
   });
 
   // Fetch progress for logged-in user
-  const { data: progressData } = useQuery<StopProgress[]>({
+  // Backend returns { tourId, progress: StopProgress[], isCompleted: boolean }
+  const { data: progressData } = useQuery<{
+    tourId: number;
+    progress: StopProgress[];
+    isCompleted: boolean;
+  }>({
     queryKey: [`/api/tours/${id}/progress`],
     queryFn: async () => {
       const response = await apiRequest(`/api/tours/${id}/progress`);
@@ -75,7 +80,7 @@ export default function TourDetail() {
   });
 
   const completedStopIds = new Set(
-    (progressData || []).map((p) => p.stopId)
+    (progressData?.progress || []).map((p) => p.stopId)
   );
 
   // Mark stop as visited mutation
@@ -276,7 +281,7 @@ export default function TourDetail() {
 
   // Scroll to the next incomplete stop when progress loads
   useEffect(() => {
-    if (progressData && progressData.length > 0 && tour?.stops?.length && nextStopRef.current) {
+    if (progressData?.progress?.length && tour?.stops?.length && nextStopRef.current) {
       nextStopRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [progressData, tour?.stops?.length]);

@@ -390,35 +390,48 @@ export default function Discover() {
                   <p className="text-gray-600">Loading tours...</p>
                 </div>
               </div>
-            ) : displayTours.length === 0 ? (
+            ) : activeLocation || displayTours.length > 0 ? (
+              // Always show the map when we have a location OR tours to display.
+              // "No nearby tours" becomes a floating banner so the map stays visible.
+              <div className="relative w-full h-full">
+                <InteractiveMap
+                  tours={displayTours}
+                  userLocation={userLocation}
+                  activeLocation={activeLocation}
+                  onLocationRequest={handleLocationRequest}
+                  onTourSelect={handleTourSelect}
+                />
+                {displayTours.length === 0 && activeLocation && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 bg-white rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 max-w-sm w-[calc(100%-2rem)]">
+                    <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">No tours in this area</p>
+                      <p className="text-xs text-gray-500">Try searching a different location</p>
+                    </div>
+                    {allTours.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleClearSearch}
+                        className="flex-shrink-0 text-xs h-7"
+                      >
+                        Browse all
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // No location and no tours — global empty state
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                 <div className="text-center max-w-md mx-auto px-4">
                   <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tours Found</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tours Available</h3>
                   <p className="text-gray-600 mb-4">
-                    {activeLocation 
-                      ? "No tours found in your area. Try expanding your search radius or explore other locations."
-                      : "No tours are currently available. Check back later for new content."
-                    }
+                    No tours are currently available. Check back later for new content.
                   </p>
-                  {activeLocation && allTours.length > 0 && (
-                    <Button
-                      onClick={handleShowNearbyTours}
-                      className="bg-walkable-cyan hover:bg-walkable-cyan-dark text-white"
-                    >
-                      Show Nearby Tours
-                    </Button>
-                  )}
                 </div>
               </div>
-            ) : (
-              <InteractiveMap
-                tours={displayTours}
-                userLocation={userLocation}
-                activeLocation={activeLocation}
-                onLocationRequest={handleLocationRequest}
-                onTourSelect={handleTourSelect}
-              />
             )}
           </div>
 
