@@ -9,7 +9,10 @@ import { config } from "./config";
 const app = express();
 app.set('trust proxy', 1);
 app.use(helmet({
-  contentSecurityPolicy: config.NODE_ENV === 'development' ? false : undefined,
+  // CSP disabled globally — external resources (Unsplash images, OpenStreetMap tiles,
+  // Stripe, uploaded media) require a carefully-tuned allowlist. Disable for now and
+  // configure properly before a security-sensitive launch.
+  contentSecurityPolicy: false,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

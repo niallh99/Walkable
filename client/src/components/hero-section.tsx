@@ -39,7 +39,7 @@ export function HeroSection() {
           {/* Right Side - Hero Image */}
           <div className="relative">
             <img
-              src="https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800"
+              src="https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&q=80"
               alt="City street perfect for walking tours"
               className="rounded-2xl shadow-2xl w-full h-auto"
             />

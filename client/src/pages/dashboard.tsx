@@ -339,13 +339,18 @@ export default function Dashboard() {
                             {/* Title + thumbnail */}
                             <td className="py-3 px-3">
                               <div className="flex items-center gap-3">
-                                {tour.coverImageUrl ? (
+                                {tour.coverImageUrl && !tour.coverImageUrl.startsWith('/uploads/') ? (
                                   <img
                                     src={tour.coverImageUrl}
                                     alt={tour.title}
                                     className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                      (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.removeProperty('display');
+                                    }}
                                   />
-                                ) : (
+                                ) : null}
+                                {(!tour.coverImageUrl || tour.coverImageUrl.startsWith('/uploads/')) && (
                                   <div className="w-10 h-10 bg-walkable-cyan rounded-lg flex items-center justify-center flex-shrink-0">
                                     <Volume2 className="h-5 w-5 text-white" />
                                   </div>
