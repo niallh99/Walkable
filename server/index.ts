@@ -7,6 +7,7 @@ import { logger } from "./logger";
 import { config } from "./config";
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(helmet({
   contentSecurityPolicy: config.NODE_ENV === 'development' ? false : undefined,
 }));
