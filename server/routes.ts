@@ -1040,6 +1040,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Location autocomplete endpoint
+  app.get("/api/geocode/autocomplete", async (req, res) => {
+    try {
+      const { q } = req.query;
+
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.status(400).json({ error: "Query parameter 'q' must be at least 2 characters" });
+      }
+
+      const params = new URLSearchParams({
+        address: q.trim(),
+        key: config.GOOGLE_API_KEY,
+      });
+
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?${params}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Google API error: ${response.status}`);
+      }
+
+      const data = await response.json() as {
+        status: string;
+        results: Array<{
+          formatted_address: string;
+          geometry: { location: { lat: number; lng: number } };
+        }>;
+      };
+
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        throw new Error(`Google Geocoding status: ${data.status}`);
+      }
+
+      const suggestions = (data.results ?? []).slice(0, 5).map((r) => ({
+        displayName: r.formatted_address,
+        lat: r.geometry.location.lat,
+        lng: r.geometry.location.lng,
+      }));
+
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error in geocode autocomplete:", error);
+      res.status(500).json({ error: "Failed to fetch location suggestions" });
+    }
+  });
+
   // Profile API Endpoints
 
   // Update own profile (PUT /api/users/profile) - uses JWT to identify user
