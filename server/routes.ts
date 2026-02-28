@@ -1040,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Location autocomplete endpoint
+  // Location autocomplete endpoint (OpenStreetMap Nominatim — handles partial text, no API key)
   app.get("/api/geocode/autocomplete", async (req, res) => {
     try {
       const { q } = req.query;
@@ -1049,30 +1049,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Query parameter 'q' must be at least 2 characters" });
       }
 
+      const params = new URLSearchParams({
+        q: q.trim(),
+        format: 'json',
+        limit: '5',
+        addressdetails: '0',
+        'accept-language': 'en',
+      });
+
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q.trim())}&key=${config.GOOGLE_API_KEY}`
+        `https://nominatim.openstreetmap.org/search?${params}`,
+        { headers: { 'User-Agent': 'Walkable/1.0 (walkable-production.up.railway.app)' } }
       );
 
       if (!response.ok) {
-        throw new Error(`Google API error: ${response.status}`);
+        throw new Error(`Nominatim error: ${response.status}`);
       }
 
-      const data = await response.json() as {
-        status: string;
-        results: Array<{
-          formatted_address: string;
-          geometry: { location: { lat: number; lng: number } };
-        }>;
-      };
+      const data = await response.json() as Array<{
+        display_name: string;
+        lat: string;
+        lon: string;
+      }>;
 
-      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-        throw new Error(`Google Geocoding status: ${data.status}`);
-      }
-
-      const suggestions = (data.results ?? []).slice(0, 5).map((r) => ({
-        displayName: r.formatted_address,
-        lat: r.geometry.location.lat,
-        lng: r.geometry.location.lng,
+      const suggestions = data.map((r) => ({
+        displayName: r.display_name,
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
       }));
 
       res.json(suggestions);
