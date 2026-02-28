@@ -1049,13 +1049,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Query parameter 'q' must be at least 2 characters" });
       }
 
-      const params = new URLSearchParams({
-        address: q.trim(),
-        key: config.GOOGLE_API_KEY,
-      });
-
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?${params}`
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q.trim())}&key=${config.GOOGLE_API_KEY}`
       );
 
       if (!response.ok) {
