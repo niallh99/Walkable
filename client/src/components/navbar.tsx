@@ -62,6 +62,15 @@ export function Navbar() {
                 Discover
               </span>
             </Link>
+            {user?.role === 'creator' && (
+              <Link href="/create-tour">
+                <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                  location === "/create-tour" ? "border-b-2 border-white" : ""
+                }`}>
+                  Create
+                </span>
+              </Link>
+            )}
             {user && (
               <Link href="/feed">
                 <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer flex items-center gap-1 ${
@@ -79,24 +88,6 @@ export function Navbar() {
                 }`}>
                   <BarChart3 className="h-3.5 w-3.5" />
                   Dashboard
-                </span>
-              </Link>
-            )}
-            {user?.role === 'creator' && (
-              <Link href="/create-tour">
-                <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                  location === "/create-tour" ? "border-b-2 border-white" : ""
-                }`}>
-                  Create
-                </span>
-              </Link>
-            )}
-            {user && (
-              <Link href="/profile">
-                <span className={`text-white hover:text-gray-200 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
-                  location === "/profile" ? "border-b-2 border-white" : ""
-                }`}>
-                  Profile
                 </span>
               </Link>
             )}
@@ -174,7 +165,7 @@ export function Navbar() {
                 </span>
               </Link>
               <Link href="/discover">
-                <span 
+                <span
                   className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
                     location === "/discover" ? "bg-white/10 rounded-md" : ""
                   }`}
@@ -183,6 +174,18 @@ export function Navbar() {
                   Discover
                 </span>
               </Link>
+              {user?.role === 'creator' && (
+                <Link href="/create-tour">
+                  <span
+                    className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
+                      location === "/create-tour" ? "bg-white/10 rounded-md" : ""
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Create
+                  </span>
+                </Link>
+              )}
               {user && (
                 <Link href="/feed">
                   <span
@@ -204,30 +207,6 @@ export function Navbar() {
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     Dashboard
-                  </span>
-                </Link>
-              )}
-              {user?.role === 'creator' && (
-                <Link href="/create-tour">
-                  <span
-                    className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
-                      location === "/create-tour" ? "bg-white/10 rounded-md" : ""
-                    }`}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Create
-                  </span>
-                </Link>
-              )}
-              {user && (
-                <Link href="/profile">
-                  <span
-                    className={`block text-white hover:text-gray-200 px-3 py-2 text-base font-medium transition-colors cursor-pointer ${
-                      location === "/profile" ? "bg-white/10 rounded-md" : ""
-                    }`}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Profile
                   </span>
                 </Link>
               )}

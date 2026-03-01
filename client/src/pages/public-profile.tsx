@@ -80,9 +80,9 @@ export default function PublicProfile() {
 
   if (isLoadingProfile) {
     return (
-      <div className="min-h-screen bg-walkable-light-gray">
+      <div className="min-h-screen bg-walkable-light-gray flex flex-col">
         <Navbar />
-        <div className="pt-24 pb-16 flex items-center justify-center">
+        <div className="flex-1 pt-24 pb-16 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-walkable-cyan" />
         </div>
         <Footer />
@@ -92,9 +92,9 @@ export default function PublicProfile() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-walkable-light-gray">
+      <div className="min-h-screen bg-walkable-light-gray flex flex-col">
         <Navbar />
-        <div className="pt-24 pb-16">
+        <div className="flex-1 pt-24 pb-16">
           <div className="max-w-4xl mx-auto px-4">
             <Card>
               <CardContent className="text-center py-16">
@@ -116,9 +116,9 @@ export default function PublicProfile() {
   const isMutating = followMutation.isPending || unfollowMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-walkable-light-gray">
+    <div className="min-h-screen bg-walkable-light-gray flex flex-col">
       <Navbar />
-      <div className="pt-24 pb-16">
+      <div className="flex-1 pt-24 pb-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Profile Card */}

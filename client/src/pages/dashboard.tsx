@@ -133,9 +133,9 @@ export default function Dashboard() {
   // ── Not logged in ──
   if (!user) {
     return (
-      <div className="min-h-screen bg-walkable-light-gray">
+      <div className="min-h-screen bg-walkable-light-gray flex flex-col">
         <Navbar />
-        <div className="pt-24 pb-16 flex items-center justify-center">
+        <div className="flex-1 pt-24 pb-16 flex items-center justify-center">
           <Card className="max-w-md w-full mx-4">
             <CardContent className="text-center py-12">
               <div className="text-4xl mb-4">🔒</div>
@@ -154,9 +154,9 @@ export default function Dashboard() {
   // ── Not a creator ──
   if (user.role !== 'creator') {
     return (
-      <div className="min-h-screen bg-walkable-light-gray">
+      <div className="min-h-screen bg-walkable-light-gray flex flex-col">
         <Navbar />
-        <div className="pt-24 pb-16 flex items-center justify-center">
+        <div className="flex-1 pt-24 pb-16 flex items-center justify-center">
           <Card className="max-w-md w-full mx-4">
             <CardContent className="text-center py-12">
               <BarChart3 className="h-12 w-12 text-gray-300 mx-auto mb-4" />
@@ -178,9 +178,9 @@ export default function Dashboard() {
   const hasAnalytics = analytics != null;
 
   return (
-    <div className="min-h-screen bg-walkable-light-gray">
+    <div className="min-h-screen bg-walkable-light-gray flex flex-col">
       <Navbar />
-      <div className="pt-24 pb-16">
+      <div className="flex-1 pt-24 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Page header */}

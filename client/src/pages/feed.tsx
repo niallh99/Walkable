@@ -23,9 +23,9 @@ export default function Feed() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-walkable-light-gray">
+      <div className="min-h-screen bg-walkable-light-gray flex flex-col">
         <Navbar />
-        <div className="pt-24 pb-16">
+        <div className="flex-1 pt-24 pb-16">
           <div className="max-w-2xl mx-auto px-4">
             <Card>
               <CardContent className="text-center py-16">
@@ -45,9 +45,9 @@ export default function Feed() {
   }
 
   return (
-    <div className="min-h-screen bg-walkable-light-gray">
+    <div className="min-h-screen bg-walkable-light-gray flex flex-col">
       <Navbar />
-      <div className="pt-24 pb-16">
+      <div className="flex-1 pt-24 pb-16">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-3 mb-6">
             <Rss className="h-6 w-6 text-walkable-cyan" />

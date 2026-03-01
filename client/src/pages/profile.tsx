@@ -332,9 +332,9 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-walkable-light-gray">
+      <div className="min-h-screen bg-walkable-light-gray flex flex-col">
         <Navbar />
-        <div className="pt-24 pb-16">
+        <div className="flex-1 pt-24 pb-16">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <Card>
               <CardContent className="pt-6">
@@ -370,9 +370,9 @@ export default function Profile() {
   const displayImage = imagePreview || user.profileImage;
 
   return (
-    <div className="min-h-screen bg-walkable-light-gray">
+    <div className="min-h-screen bg-walkable-light-gray flex flex-col">
       <Navbar />
-      <div className="pt-24 pb-16">
+      <div className="flex-1 pt-24 pb-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Profile Header */}
           <Card className="mb-8">

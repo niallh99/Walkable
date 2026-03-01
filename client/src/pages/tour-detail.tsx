@@ -431,7 +431,7 @@ export default function TourDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <Navbar />
         <div className="pt-16 flex items-center justify-center h-96">
           <div className="text-center">
@@ -445,7 +445,7 @@ export default function TourDetail() {
 
   if (!tour) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <Navbar />
         <div className="pt-16 flex flex-col items-center justify-center h-96 space-y-4">
           <div className="text-lg text-gray-600">Tour not found</div>
@@ -491,10 +491,10 @@ export default function TourDetail() {
   }];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navbar />
 
-      <div className="pt-16">
+      <div className="flex-1 pt-16">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-4 py-6">
           <div className="max-w-7xl mx-auto">
